@@ -7,12 +7,14 @@
     body { @apply bg-slate-50 text-slate-700; font-feature-settings: "cv11", "ss01"; }
     h1, h2, h3, h4 { @apply text-slate-900; }
     [x-cloak] { display: none !important; }
+    /* grid/flex children must be allowed to shrink so wide tables scroll inside their card, not the page */
+    .grid > *, .flex-1 { min-width: 0; }
 }
 
 @layer components {
     /* Cards */
-    .card { @apply bg-white rounded-xl border border-slate-200/70 shadow-card; }
-    .card-header { @apply px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3; }
+    .card { @apply bg-white rounded-xl border border-slate-200/70 shadow-card min-w-0; }
+    .card-header { @apply px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-3 flex-wrap; }
     .card-title { @apply text-sm font-semibold text-slate-800; }
     .card-body { @apply p-5; }
 

@@ -10,6 +10,7 @@ use App\Models\Company;
 use App\Models\CostCenter;
 use App\Models\Department;
 use App\Models\DepreciationMethod;
+use App\Models\DepreciationRun;
 use App\Models\Location;
 use App\Models\PmSchedule;
 use App\Models\User;
@@ -364,6 +365,7 @@ class DatabaseSeeder extends Seeder
                     Auth::setUser($admin);
                     $dep->finalize($run);
                 }
+                $this->backdateRun($run, $end);
                 $month = $month->addMonth();
             }
             Auth::setUser($manager);
@@ -551,8 +553,9 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
             $dep = app(DepreciationService::class);
-            $dep->finalize($dep->post('2026-08-01', '2026-08-31', null, 'ACME secret run'));
-            $dep->post('2026-09-01', '2026-09-30', null, 'ACME secret run');
+            $dep->finalize($r = $dep->post('2026-08-01', '2026-08-31', null, 'ACME secret run'));
+            $this->backdateRun($r, CarbonImmutable::parse('2026-08-31'));
+            $this->backdateRun($dep->post('2026-09-01', '2026-09-30', null, 'ACME secret run'), CarbonImmutable::parse('2026-09-30'));
             app(TransferService::class)->transfer($assets[0], ['transfer_date' => '2026-10-05', 'to_location_id' => $loc2->id, 'reason' => 'ACME secret transfer']);
             $svc = app(MaintenanceService::class);
             PmSchedule::create(['asset_id' => $assets[0]->id, 'code' => 'ACME-PM', 'title' => 'ACME secret PM', 'frequency_unit' => 'months', 'frequency_interval' => 1,
@@ -562,5 +565,19 @@ class DatabaseSeeder extends Seeder
                 'sale_value' => 2400000, 'reason' => 'ACME secret disposal']);
             Auth::forgetUser();
         });
+    }
+
+    /** Seeded runs are created "now"; stamp them as if posted 3 days and finalised 5 days after month end. */
+    private function backdateRun(DepreciationRun $run, CarbonImmutable $end): void
+    {
+        $posted = $end->addDays(3)->setTime(17, 30);
+        $final = $end->addDays(5)->setTime(11, 15);
+        $run->refresh();
+        DepreciationRun::whereKey($run->id)->update(['run_at' => $posted, 'created_at' => $posted, 'updated_at' => $posted]
+            + ($run->status === 'finalized' ? ['finalized_at' => $final] : []));
+        DB::table('depreciation_entries')->where('depreciation_run_id', $run->id)->update(['created_at' => $posted, 'updated_at' => $posted]);
+        DB::table('period_locks')->where('depreciation_run_id', $run->id)->update(['locked_at' => $final, 'created_at' => $final, 'updated_at' => $final]);
+        DB::table('audit_logs')->where('auditable_type', DepreciationRun::class)->where('auditable_id', $run->id)
+            ->update(['created_at' => DB::raw("IF(event = 'finalized', '".$final->toDateTimeString()."', '".$posted->toDateTimeString()."')")]);
     }
 }

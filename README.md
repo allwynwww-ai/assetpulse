@@ -168,7 +168,7 @@ Disposal types are sale, scrap, write-off, donation, theft/loss and insurance cl
 - **Maintenance.**
   - 14 PM schedules (days, months and running hours) with about 90 completed PM work orders.
   - Breakdowns with downtime and costs.
-  - Two overdue PMs.
+  - Overdue PMs (two on the seed date; more fall due as days pass).
   - An open breakdown that keeps the EV Connector mould *Under Maintenance*.
 - **Totals.** Live gross block ₹26,61,83,800 · NBV ₹17,41,95,214.28 · FY 2026-27 depreciation (Apr–Sep) ₹84,66,848.59.
 - **Isolation tenant.** A second company, Acme, has its own runs, a transfer, a PM, a work order and a disposal, all marked "ACME Secret". This lets you check that nothing leaks between tenants.

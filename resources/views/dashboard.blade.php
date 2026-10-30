@@ -27,7 +27,7 @@
     @endif
 
     {{-- KPIs --}}
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+    <div class="mb-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3 2xl:grid-cols-6">
         <a href="{{ route('assets.index') }}" class="card p-5 hover:shadow-soft"><div class="stat-label">Assets in use</div><div class="stat-value">{{ number_format($totals->n) }}</div>
             <div class="mt-1 text-xs text-slate-400">{{ $underMaintenance ? $underMaintenance.' under maintenance' : 'all operational' }}</div></a>
         <div class="card p-5"><div class="stat-label">Gross block</div><div class="stat-value">{{ inr_short($totals->cost) }}</div><div class="mt-1 text-xs text-slate-400">{{ inr($totals->cost, 0) }}</div></div>

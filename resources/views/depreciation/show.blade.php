@@ -54,8 +54,8 @@
                     <tbody>
                     @foreach ($entries as $e)
                         <tr class="{{ $e->trashed() ? 'line-through opacity-50' : '' }}">
-                            <td><a href="{{ route('assets.show', $e->asset_id) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $e->asset?->asset_code }}</a><div class="text-sm text-slate-700">{{ $e->asset?->name }}</div></td>
-                            <td class="text-xs text-slate-500">{{ $e->costCenter?->code ?? '—' }}@if (! empty($e->calculation_details['cost_center_split']))<div class="text-amber-600">split</div>@endif</td>
+                            <td><a href="{{ route('assets.show', $e->asset_id) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $e->asset?->asset_code }}</a><div class="min-w-[12rem] text-sm text-slate-700">{{ $e->asset?->name }}</div></td>
+                            <td class="whitespace-nowrap text-xs text-slate-500">{{ $e->costCenter?->code ?? '—' }}@if (! empty($e->calculation_details['cost_center_split']))<div class="text-amber-600">split</div>@endif</td>
                             <td class="text-xs">{{ $e->method_code }}</td>
                             <td class="text-right text-xs tabular-nums">{{ $e->rate !== null ? number_format((float) $e->rate, 2) : '—' }}</td>
                             <td class="text-right text-xs tabular-nums">{{ $e->days }}</td>
@@ -74,7 +74,7 @@
             <div class="card-header"><div class="card-title">By category</div></div>
             <ul class="divide-y divide-slate-100">
                 @foreach ($byCategory as $c)
-                    <li class="flex items-center justify-between px-5 py-2.5 text-sm"><span class="text-slate-700">{{ $c->name }} <span class="text-xs text-slate-400">({{ $c->n }})</span></span><span class="tabular-nums font-medium">{{ inr_short($c->dep) }}</span></li>
+                    <li class="flex items-center justify-between px-5 py-2.5 text-sm"><span class="text-slate-700">{{ $c->name }} <span class="text-xs text-slate-400">({{ $c->n }})</span></span><span class="whitespace-nowrap pl-3 tabular-nums font-medium">{{ inr_short($c->dep) }}</span></li>
                 @endforeach
             </ul>
         </div>
