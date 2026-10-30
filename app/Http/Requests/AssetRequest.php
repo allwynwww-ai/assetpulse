@@ -2,7 +2,12 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Asset;
+use App\Models\AssetStatus;
+use App\Models\DepreciationEntry;
 use App\Models\DepreciationMethod;
+use App\Services\PeriodGuard;
+use Illuminate\Support\Carbon;
 
 class AssetRequest extends TenantFormRequest
 {
@@ -89,11 +94,93 @@ class AssetRequest extends TenantFormRequest
             if ((float) $this->opening_accumulated_depreciation > $maxOpening + 0.001) {
                 $v->errors()->add('opening_accumulated_depreciation', 'Opening accumulated depreciation cannot exceed cost less residual value ('.inr($maxOpening).').');
             }
+            $this->periodGuards($v);
             $method = DepreciationMethod::find($this->depreciation_method_id);
             if ($method?->code === DepreciationMethod::UOP && ! ((float) $this->total_units_capacity > 0)) {
                 $v->errors()->add('total_units_capacity', 'Units of Production method needs total units capacity (e.g. lifetime shots).');
             }
         });
+    }
+
+    /**
+     * Depreciation integrity:
+     *  - disposed / scrapped assets are read-only;
+     *  - "Disposed"/"Scrapped" can only be reached through the disposal workflow;
+     *  - a new asset cannot be capitalised inside a finalised (locked) period;
+     *  - once depreciation has been posted, the put-to-use date and the value basis
+     *    (cost, residual, life, method, rate, opening balance) are frozen: reverse the
+     *    open run(s) first, or – for finalised periods – ask an admin to unlock.
+     */
+    protected function periodGuards($v): void
+    {
+        $asset = $this->route('asset');
+        $statusCode = AssetStatus::find($this->asset_status_id)?->code;
+        $closing = [AssetStatus::DISPOSED, AssetStatus::SCRAPPED];
+
+        if (! $asset instanceof Asset) {
+            if (in_array($statusCode, $closing, true)) {
+                $v->errors()->add('asset_status_id', 'A new asset cannot be created as disposed or scrapped.');
+            }
+            if (PeriodGuard::isLocked($this->capitalization_date)) {
+                $v->errors()->add('capitalization_date', 'The put-to-use date '.fmt_date($this->capitalization_date).' falls in a finalised depreciation period (locked through '.fmt_date(PeriodGuard::lockedThrough()).'). Use a later date or ask a Company Admin to unlock the period.');
+            }
+
+            return;
+        }
+
+        if ($asset->isDisposed()) {
+            $v->errors()->add('name', 'This asset has been disposed and is read-only.');
+
+            return;
+        }
+        if (in_array($statusCode, $closing, true) && ! in_array($asset->status?->code, $closing, true)) {
+            $v->errors()->add('asset_status_id', 'Use the Dispose action to sell or scrap an asset – it books the pro-rata depreciation and profit / loss.');
+        }
+        if ($statusCode !== $asset->status?->code && $asset->status?->code === AssetStatus::UNDER_MAINTENANCE && $asset->workOrders()->where('type', 'breakdown')->whereIn('status', ['open', 'in_progress', 'on_hold'])->exists()) {
+            $v->errors()->add('asset_status_id', 'The asset has an open breakdown work order; complete or cancel it to change the status.');
+        }
+
+        $entries = DepreciationEntry::where('asset_id', $asset->id);
+        if (! (clone $entries)->exists()) {
+            if ($this->dateChanged($asset->capitalization_date, $this->capitalization_date) && PeriodGuard::isLocked($this->capitalization_date)) {
+                $v->errors()->add('capitalization_date', 'The put-to-use date falls in a finalised (locked) period.');
+            }
+
+            return;
+        }
+        $finalised = (clone $entries)->whereHas('run', fn ($q) => $q->where('status', 'finalized'))->exists();
+        $why = $finalised
+            ? 'is locked because depreciation for this asset has been finalised (locked through '.fmt_date(PeriodGuard::lockedThrough()).'). A Company Admin must unlock the periods and reverse the runs first.'
+            : 'cannot change after depreciation has been posted. Reverse the open depreciation run(s) first.';
+
+        if ($this->dateChanged($asset->capitalization_date, $this->capitalization_date)) {
+            $v->errors()->add('capitalization_date', 'The put-to-use date '.$why);
+        }
+        $money = ['original_cost' => 'Original cost', 'residual_value' => 'Residual value', 'opening_accumulated_depreciation' => 'Opening accumulated depreciation'];
+        foreach ($money as $f => $label) {
+            if (abs((float) $asset->{$f} - (float) $this->input($f)) > 0.004) {
+                $v->errors()->add($f, "{$label} {$why}");
+            }
+        }
+        foreach (['useful_life_years' => 'Useful life', 'useful_life_months' => 'Useful life', 'depreciation_method_id' => 'Depreciation method'] as $f => $label) {
+            if ((int) $asset->{$f} !== (int) $this->input($f) && ! $v->errors()->has($f)) {
+                $v->errors()->add($f, "{$label} {$why}");
+            }
+        }
+        if ($this->filled('wdv_rate') && $asset->wdv_rate !== null && abs((float) $asset->wdv_rate - (float) $this->wdv_rate) > 0.00005) {
+            $v->errors()->add('wdv_rate', "WDV rate {$why}");
+        }
+        if ($this->dateChanged($asset->opening_balance_date, $this->opening_balance_date)) {
+            $v->errors()->add('opening_balance_date', "Opening balance date {$why}");
+        }
+    }
+
+    private function dateChanged($old, $new): bool
+    {
+        $o = $old ? Carbon::parse($old)->toDateString() : null;
+        $n = $new ? Carbon::parse($new)->toDateString() : null;
+
+        return $o !== $n;
     }
 
     public function attributes(): array

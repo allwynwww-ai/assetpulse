@@ -14,6 +14,7 @@ return new class extends Migration
             $table->foreignId('financial_year_id')->constrained()->restrictOnDelete();
             $table->foreignId('depreciation_run_parameter_id')->nullable()->constrained()->nullOnDelete();
             $table->string('run_number', 30);
+            $table->enum('run_type', ['periodic', 'disposal'])->default('periodic')->comment('disposal = pro-rata charge posted when an asset is retired');
             $table->enum('frequency', ['monthly', 'quarterly', 'yearly']);
             $table->enum('book', ['companies_act', 'income_tax'])->default('companies_act');
             $table->date('period_start');
@@ -34,6 +35,7 @@ return new class extends Migration
             $table->unique(['company_id', 'run_number']);
             $table->index(['company_id', 'period_start', 'period_end']);
             $table->index(['company_id', 'status']);
+            $table->index(['company_id', 'run_type', 'period_end']);
         });
     }
 

@@ -16,6 +16,8 @@ return new class extends Migration
             $table->foreignId('financial_year_id')->constrained()->restrictOnDelete();
             $table->foreignId('cost_center_id')->nullable()->constrained()->nullOnDelete()->comment('Snapshot at run time');
             $table->foreignId('location_id')->nullable()->constrained()->nullOnDelete()->comment('Snapshot at run time');
+            $table->foreignId('department_id')->nullable()->constrained()->nullOnDelete()->comment('Snapshot at period end');
+            $table->foreignId('asset_category_id')->nullable()->constrained('asset_categories')->nullOnDelete()->comment('Snapshot for reporting');
             $table->date('period_start');
             $table->date('period_end');
             $table->string('method_code', 10);
@@ -35,6 +37,7 @@ return new class extends Migration
             $table->softDeletes();
             $table->index(['company_id', 'asset_id', 'period_end']);
             $table->index(['company_id', 'financial_year_id']);
+            $table->index(['company_id', 'depreciation_run_id']);
         });
     }
 

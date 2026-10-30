@@ -25,10 +25,20 @@
                 <a href="{{ route('assets.create') }}" class="{{ $link('assets.create') }}"><x-icon name="plus"/> Add Asset</a>
             @endcan
 
-            <div class="nav-section">Operations <span class="ml-1 rounded bg-slate-100 px-1 py-px text-[9px] tracking-normal text-slate-400">Phase 2</span></div>
-            @foreach ([['calculator', 'Depreciation'], ['arrows', 'Transfers'], ['wrench', 'Maintenance'], ['trash', 'Disposals'], ['chart', 'Reports']] as [$ic, $lbl])
-                <span class="nav-link cursor-not-allowed opacity-50" title="Coming in phase 2"><x-icon :name="$ic"/> {{ $lbl }}</span>
-            @endforeach
+            <div class="nav-section">Accounting</div>
+            <a href="{{ route('depreciation.index') }}" class="{{ $link('depreciation.*') }}"><x-icon name="calculator"/> Depreciation
+                @if ($openRuns = \App\Models\DepreciationRun::where('status', 'posted')->where('run_type', 'periodic')->count())<span class="ml-auto rounded-full bg-sky-100 px-1.5 text-[10px] font-semibold text-sky-700" title="Posted, not finalised">{{ $openRuns }}</span>@endif</a>
+            <a href="{{ route('disposals.index') }}" class="{{ $link('disposals.*') }}"><x-icon name="trash"/> Disposals</a>
+
+            <div class="nav-section">Operations</div>
+            <a href="{{ route('transfers.index') }}" class="{{ $link('transfers.*') }}"><x-icon name="arrows"/> Transfers</a>
+            <a href="{{ route('pm-schedules.index') }}" class="{{ $link('pm-schedules.*') }}"><x-icon name="calendar"/> PM Schedules
+                @if ($pmDue = \App\Services\MaintenanceService::dueCount())<span class="ml-auto rounded-full bg-rose-500 px-1.5 py-px text-[10px] font-semibold text-white" title="PM overdue or due soon">{{ $pmDue }}</span>@endif</a>
+            <a href="{{ route('work-orders.index') }}" class="{{ $link('work-orders.*') }}"><x-icon name="wrench"/> Work Orders
+                @if ($woOpen = \App\Models\WorkOrder::whereIn('status', ['open', 'in_progress', 'on_hold'])->count())<span class="ml-auto rounded-full bg-amber-100 px-1.5 text-[10px] font-semibold text-amber-700" title="Open work orders">{{ $woOpen }}</span>@endif</a>
+
+            <div class="nav-section">Insights</div>
+            <a href="{{ route('reports.index') }}" class="{{ $link('reports.*') }}"><x-icon name="chart"/> Reports</a>
 
             <div class="nav-section">Masters</div>
             <a href="{{ route('admin.asset-categories.index') }}" class="{{ $link('admin.asset-categories.*') }}"><x-icon name="tag"/> Asset Categories</a>

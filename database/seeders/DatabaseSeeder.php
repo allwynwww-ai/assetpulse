@@ -11,13 +11,21 @@ use App\Models\CostCenter;
 use App\Models\Department;
 use App\Models\DepreciationMethod;
 use App\Models\Location;
+use App\Models\PmSchedule;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\AssetCodeGenerator;
 use App\Services\CompanyProvisioner;
+use App\Services\DisposalService;
+use App\Services\MaintenanceService;
+use App\Services\TransferService;
+use App\Services\Depreciation\DepreciationService;
 use App\Support\Tenant;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
@@ -61,13 +69,15 @@ class DatabaseSeeder extends Seeder
         ]);
         app(CompanyProvisioner::class)->provision($company);
 
-        $this->user($company->id, Role::CompanyAdmin, 'Rohan Kulkarni', 'admin@precisionpolymers.in', $pwd, 'Finance Controller');
+        $admin = $this->user($company->id, Role::CompanyAdmin, 'Rohan Kulkarni', 'admin@precisionpolymers.in', $pwd, 'Finance Controller');
         $manager = $this->user($company->id, Role::AssetManager, 'Sneha Patil', 'assets@precisionpolymers.in', $pwd, 'Asset & Maintenance Manager');
         $this->user($company->id, Role::Viewer, 'Amit Deshpande (CA)', 'auditor@precisionpolymers.in', $pwd, 'Statutory Auditor');
 
         Tenant::run($company->id, function () use ($manager) {
             $slm = DepreciationMethod::where('code', 'SLM')->value('id');
             $wdv = DepreciationMethod::where('code', 'WDV')->value('id');
+            $uop = DepreciationMethod::where('code', 'UOP')->value('id');
+            $calc = app(DepreciationService::class)->calculator();
 
             // Schedule II (Companies Act 2013, Part C) useful lives
             $cats = [];
@@ -81,6 +91,7 @@ class DatabaseSeeder extends Seeder
                 ['FUR', 'Furniture & Fixtures', 'FUR', 10, 0, 'Part C, III(i) – Furniture and fittings: 10 yrs', 5000, '1501'],
                 ['ELE', 'Electrical Installations', 'ELE', 10, 0, 'Part C, XIII – Electrical installations & equipment: 10 yrs', 5000, '1601'],
                 ['BLD', 'Buildings – Factory', 'BLD', 30, 0, 'Part C, I(i)(a) – Factory buildings: 30 yrs', 0, '1101'],
+                ['INS', 'Tools, Gauges & Measuring Instruments', 'INS', 15, 0, 'Part C, II – Plant & Machinery (general): 15 yrs; items ≤ ₹5,000 written off (low-value policy)', 0, '1204'],
             ] as [$code, $name, $prefix, $years, $months, $ref, $threshold, $gl]) {
                 $cats[$code] = AssetCategory::create([
                     'code' => $code, 'name' => $name, 'asset_code_prefix' => $prefix, 'depreciation_method_id' => $slm,
@@ -145,6 +156,8 @@ class DatabaseSeeder extends Seeder
                 ['SCH', 'Schneider Electric India Pvt Ltd', 'Pune', 'Maharashtra', '27AAACS7853F1ZQ', 'in-sales@se.com', 45],
                 ['BLU', 'Blue Star Ltd', 'Mumbai', 'Maharashtra', '27AAACB4487D1Z2', 'industrial@bluestarindia.com', 30],
                 ['LNT', 'L&T Construction (Buildings & Factories)', 'Mumbai', 'Maharashtra', '27AAACL0140P1ZG', 'bf@larsentoubro.com', 60],
+                ['ATL', 'Atlas Copco (India) Ltd', 'Pune', 'Maharashtra', '27AAACA1534D1ZT', 'compressor.sales@in.atlascopco.com', 45],
+                ['MIT', 'Mitutoyo South Asia Pvt Ltd', 'Pune', 'Maharashtra', '27AABCM3344E1Z1', 'pune@mitutoyo.co.in', 30],
             ] as [$code, $name, $city, $state, $gstin, $email, $terms]) {
                 $ven[$code] = Vendor::create(['code' => $code, 'name' => $name, 'city' => $city, 'state' => $state, 'gstin' => $gstin, 'pan' => substr($gstin, 2, 10), 'email' => $email, 'payment_terms_days' => $terms]);
             }
@@ -171,8 +184,8 @@ class DatabaseSeeder extends Seeder
                 ['MLD', 'Mould – Battery Housing 1+1 family', null, null, 'PL2', 'PRD2', 'CC-1200', 'SMT', '2021-12-02', 3150000],
                 ['MLD', 'Mould – Air Vent Louver 2-cavity hot runner', null, null, 'PL1', 'PRD', 'CC-1100', 'SMT', '2022-09-21', 2680000],
                 ['MLD', 'Mould – Washer Tub Cover 1-cavity', null, null, 'PL2', 'PRD2', 'CC-1200', 'SMT', '2023-07-14', 4325000],
-                ['MLD', 'Mould – EV Connector Housing 8-cavity', null, null, 'PL3', 'TOOL', 'CC-1300', 'SMT', '2025-01-10', 3890000, 'UNDER_MAINTENANCE'],
-                ['MLD', 'Mould – Cap Closure 48-cavity (stack)', null, null, 'PL2', 'PRD2', 'CC-1200', 'SMT', '2025-11-03', 5640000, 'ACTIVE', true],
+                ['MLD', 'Mould – EV Connector Housing 8-cavity', null, null, 'PL3', 'TOOL', 'CC-1300', 'SMT', '2025-01-10', 3890000, 'ACTIVE', 'UOP'],
+                ['MLD', 'Mould – Cap Closure 48-cavity (stack)', null, null, 'PL2', 'PRD2', 'CC-1200', 'SMT', '2025-11-03', 5640000, 'ACTIVE', 'WDV'],
                 ['AUX', 'Screw Chiller 40TR', 'Blue Star', 'BSC-40', 'PL1', 'MNT', 'CC-2100', 'BLU', '2018-05-22', 1425000],
                 ['AUX', 'Hopper Dryer & Loader Set (6 nos)', 'Conair', 'CD-150', 'PL1', 'PRD', 'CC-1100', 'MIL', '2020-02-18', 965000],
                 ['AUX', 'Sprue Picker Robots (4 nos)', 'Yushin', 'RA-II', 'PL2', 'PRD2', 'CC-1200', 'HTN', '2023-05-30', 1880000],
@@ -193,28 +206,39 @@ class DatabaseSeeder extends Seeder
                 ['VEH', 'Tata Ultra T.7 Truck (MH-14-KQ-4471)', 'Tata Motors', 'Ultra T.7', 'WH1', 'STR', 'CC-3100', 'TAT', '2021-09-01', 1645000],
                 ['VEH', 'Tata Intra V30 Pickup (MH-14-LB-2290)', 'Tata Motors', 'Intra V30', 'PL2', 'STR', 'CC-3100', 'TAT', '2023-03-20', 865000],
                 ['VEH', 'Tata Nexon EV – Staff Car (MH-12-XY-8812)', 'Tata Motors', 'Nexon EV Max', 'HO', 'ADM', 'CC-9200', 'TAT', '2024-12-12', 1895000],
-                ['VEH', 'Tata 407 Gold (MH-14-EV-1187)', 'Tata Motors', '407 Gold SFC', 'PL1', 'STR', 'CC-3100', 'TAT', '2015-07-07', 945000, 'SCRAPPED'],
+                ['VEH', 'Tata 407 Gold (MH-14-EV-1187)', 'Tata Motors', '407 Gold SFC', 'PL1', 'STR', 'CC-3100', 'TAT', '2015-07-07', 945000],
                 ['FUR', 'Workstations & Cabins – Head Office', 'Godrej Interio', 'Modular', 'HO', 'ADM', 'CC-9200', 'GEN', '2019-01-28', 1385000],
                 ['FUR', 'Conference Room Furniture', 'Godrej Interio', 'Exe-Series', 'HO', 'ADM', 'CC-9200', 'GEN', '2024-06-03', 412000],
                 ['FUR', 'Tool Room Racks & Mould Storage', 'Godrej', 'Heavy Duty', 'PL3', 'TOOL', 'CC-1300', 'GEN', '2022-08-29', 528000],
+                ['AUX', 'Air Compressor – Atlas Copco GA37 VSD+', 'Atlas Copco', 'GA37 VSD+', 'PL1', 'MNT', 'CC-2100', 'ATL', '2025-04-07', 2185000],
+                ['INS', 'Digital Vernier Caliper 0–300 mm', 'Mitutoyo', '500-193-30', 'PL1', 'QA', 'CC-2200', 'MIT', '2025-08-18', 4800],
+                ['AUX', 'Servo Sprue Picker Robot (IMM 220T cell)', 'Yushin', 'YCII-150', 'PL1', 'PRD', 'CC-1100', 'HTN', '2026-05-14', 685000],
+                ['COMP', 'Laptop – Latitude 5450 (HR)', 'Dell', 'Latitude 5450', 'HO', 'ADM', 'CC-9200', 'DEL', '2026-07-08', 92500],
+                ['MLD', 'Mould – Tail Lamp Housing 2-cavity (hot runner)', null, null, 'PL1', 'PRD', 'CC-1100', 'SMT', '2026-09-10', 4680000],
+                ['AUX', 'Air-cooled Chiller 25TR (Plant 2)', 'Blue Star', 'BSAC-25', 'PL2', 'MNT', 'CC-2100', 'BLU', '2026-10-12', 975000],
             ];
 
             $parentImm = null;
             foreach ($rows as $i => $r) {
                 [$catCode, $name, $make, $model, $l, $d, $c, $v, $date, $cost] = $r;
                 $statusCode = $r[10] ?? 'ACTIVE';
-                $useWdv = $r[11] ?? false;
+                $methodCode = $r[11] ?? 'SLM';
+                $useWdv = $methodCode === 'WDV';
                 $cat = $cats[$catCode];
                 $put = Carbon::parse($date);
                 $residual = round($cost * 0.05, 2);
                 $lifeYears = $cat->useful_life_years;
 
                 // Takeover balances for assets put to use before 1-Apr-2024 (SLM, day-based)
+                // computed with the engine itself so the brought-forward balance matches its maths exactly
                 $opening = 0;
                 $openingDate = null;
                 if ($put->lt(Carbon::parse(self::OPENING_DATE))) {
-                    $days = $put->diffInDays(Carbon::parse(self::OPENING_DATE)) + 1;
-                    $opening = min($cost - $residual, round(($cost - $residual) / $lifeYears * $days / 365.25, 2));
+                    $res = $calc->calculate([
+                        'method' => 'SLM', 'cost' => $cost, 'residual' => $residual, 'life_months' => $lifeYears * 12,
+                        'cap_date' => $put->toDateString(), 'acc_before' => 0, 'acc_at_fy_start' => 0, 'depreciated_through' => null,
+                    ], $put->toDateString(), self::OPENING_DATE);
+                    $opening = $res->amount;
                     $openingDate = self::OPENING_DATE;
                 }
 
@@ -226,7 +250,7 @@ class DatabaseSeeder extends Seeder
                     'department_id' => $dep[$d]->id,
                     'cost_center_id' => $cc[$c]->id,
                     'vendor_id' => $ven[$v]->id,
-                    'depreciation_method_id' => $useWdv ? $wdv : $slm,
+                    'depreciation_method_id' => match ($methodCode) { 'WDV' => $wdv, 'UOP' => $uop, default => $slm },
                     'asset_status_id' => $status[$statusCode],
                     'manufacturer' => $make,
                     'model' => $model,
@@ -250,7 +274,9 @@ class DatabaseSeeder extends Seeder
                     'warranty_expiry_date' => in_array($catCode, ['IMM', 'AUX', 'COMP', 'SRV', 'ELE']) ? $put->copy()->addYears($catCode === 'COMP' ? 3 : 2)->toDateString() : null,
                     'insurance_policy_number' => in_array($catCode, ['IMM', 'BLD', 'VEH', 'ELE']) ? 'NIA/FIRE/'.$put->format('Y').'/'.(70000 + $i) : null,
                     'insurance_expiry_date' => in_array($catCode, ['IMM', 'BLD', 'VEH', 'ELE']) ? '2027-03-31' : null,
-                    'notes' => $statusCode === 'SCRAPPED' ? 'Beyond economic repair; awaiting disposal approval (Phase 2).' : null,
+                    'total_units_capacity' => $methodCode === 'UOP' ? 1500000 : null,
+                    'units_consumed' => 0,
+                    'notes' => $methodCode === 'UOP' ? 'Depreciated on units of production: lifetime 15,00,000 shots (mould maker guarantee). Shot counter read at each month end.' : null,
                 ]);
                 $asset->created_by = $manager->id;
                 $asset->updated_by = $manager->id;
@@ -264,7 +290,238 @@ class DatabaseSeeder extends Seeder
             }
         });
 
+        $this->ppplHistory($company, $admin, $manager);
+        $this->ppplMaintenance($company, $manager);
+
         return $company;
+    }
+
+    /**
+     * Replays 30 months of activity through the real services, in date order:
+     * transfers and disposals inside each month, then that month's depreciation
+     * run. Apr-2024 … Aug-2026 are finalised (and therefore locked); Sep-2026 is
+     * left posted so the "awaiting finalisation" flow can be demonstrated.
+     */
+    private function ppplHistory(Company $company, User $admin, User $manager): void
+    {
+        Tenant::run($company->id, function () use ($admin, $manager) {
+            $dep = app(DepreciationService::class);
+            $trf = app(TransferService::class);
+            $dsp = app(DisposalService::class);
+            $asset = fn (string $like) => Asset::where('name', 'like', "%{$like}%")->firstOrFail();
+            $loc = fn (string $c) => Location::where('code', $c)->value('id');
+            $dept = fn (string $c) => Department::where('code', $c)->value('id');
+            $cc = fn (string $c) => CostCenter::where('code', $c)->value('id');
+            $move = function (string $date, string $like, array $to, string $reason, bool $affects = false, ?string $remarks = null) use ($trf, $asset, $loc, $dept, $cc) {
+                $trf->transfer($asset($like), [
+                    'transfer_date' => $date,
+                    'to_location_id' => isset($to[0]) ? $loc($to[0]) : null,
+                    'to_department_id' => isset($to[1]) ? $dept($to[1]) : null,
+                    'to_cost_center_id' => isset($to[2]) ? $cc($to[2]) : null,
+                    'to_custodian' => $to[3] ?? null,
+                    'reason' => $reason, 'affects_depreciation' => $affects, 'remarks' => $remarks,
+                ]);
+            };
+
+            $events = [
+                ['2024-11-05', fn () => $move('2024-11-05', 'Machine 160T', ['PL1', 'PRD', 'CC-1100', 'Vikram Jadhav'], 'Capacity balancing – tooling for Chakan clip programme moved to Plant 1', true, 'Machine shifted on low-bed trailer; re-levelled and commissioned on 07-Nov-2024.')],
+                ['2024-12-16', fn () => $dsp->dispose($asset('Tata 407'), [
+                    'disposal_date' => '2024-12-16', 'disposal_type' => 'scrap', 'buyer_name' => 'Om Sai Scrap Traders, Bhosari',
+                    'sale_invoice_number' => 'PPPL/SCR/2425/0003', 'sale_value' => 85000, 'disposal_cost' => 4500,
+                    'reason' => 'Vehicle beyond economic repair (chassis corrosion, failed fitness test). RTO registration cancelled; sold as scrap against Board approval BR/2024/11.',
+                ])],
+                ['2025-03-18', fn () => $move('2025-03-18', 'Hopper Dryer', ['PL2', 'PRD2', 'CC-1200', 'Prakash More'], 'Dryers re-deployed to Ranjangaon for the 650T washer-tub cell')],
+                ['2025-07-21', fn () => $move('2025-07-21', 'Latitude 5440', ['HO', 'IT', 'CC-9100', 'Kiran Bhosale'], 'Re-assigned to IT for the ERP upgrade project', true)],
+                ['2025-10-14', fn () => $move('2025-10-14', 'Door Trim Clip', ['PL3', 'TOOL', 'CC-1300', 'Nitin Gaikwad'], 'Sent to tool room for cavity refurbishment and texture re-work', true)],
+                ['2025-12-02', fn () => $move('2025-12-02', 'Door Trim Clip', ['PL1', 'PRD', 'CC-1100', 'Vikram Jadhav'], 'Refurbishment complete – returned to production after PPAP trial', true)],
+                ['2026-02-10', fn () => $dsp->dispose($asset('Intra V30'), [
+                    'disposal_date' => '2026-02-10', 'disposal_type' => 'sale', 'buyer_name' => 'Shree Ganesh Motors, Pune',
+                    'buyer_gstin' => '27AAKFS1234L1Z9', 'sale_invoice_number' => 'PPPL/SV/2526/0007', 'sale_value' => 520000, 'disposal_cost' => 3500,
+                    'reason' => 'Replaced by third-party logistics contract for inter-plant movement; vehicle sold to dealer (best of three quotes).',
+                ])],
+                ['2026-09-12', fn () => $move('2026-09-12', 'Sprue Picker Robots (4 nos)', ['PL1', 'PRD', 'CC-1100', 'Vikram Jadhav'], 'Robots moved to Chakan for the tail-lamp programme automation', true)],
+                ['2026-10-06', fn () => $move('2026-10-06', 'Nexon EV', ['PL1', 'PRD', 'CC-1100', 'Vikram Jadhav'], 'Staff car re-allocated to Plant 1 head (Chakan)')],
+            ];
+            usort($events, fn ($x, $y) => strcmp($x[0], $y[0]));
+
+            $mould = $asset('EV Connector');
+            $month = CarbonImmutable::parse('2024-04-01');
+            $i = 0;
+            while ($month->lte(CarbonImmutable::parse('2026-09-01'))) {
+                $end = $month->endOfMonth()->startOfDay();
+                Auth::setUser($manager);
+                while ($i < count($events) && $events[$i][0] <= $end->toDateString()) {
+                    ($events[$i][1])();
+                    $i++;
+                }
+                // Month-end shot counter reading for the units-of-production mould
+                if ($mould->capitalization_date->lte($end)) {
+                    $shots = $mould->capitalization_date->isSameMonth($end) ? 26000 : 38000 + (($month->month * 7919 + $month->year) % 9000);
+                    Asset::whereKey($mould->id)->update(['units_consumed' => DB::raw('units_consumed + '.$shots)]);
+                }
+                $run = $dep->post($month, $end, null, 'Monthly depreciation – '.$month->format('F Y'));
+                if ($end->toDateString() <= '2026-08-31') {
+                    Auth::setUser($admin);
+                    $dep->finalize($run);
+                }
+                $month = $month->addMonth();
+            }
+            Auth::setUser($manager);
+            for (; $i < count($events); $i++) {
+                ($events[$i][1])();
+            }
+            // October shots to date (not yet depreciated – next run)
+            Asset::whereKey($mould->id)->update(['units_consumed' => DB::raw('units_consumed + 31250')]);
+            Auth::forgetUser();
+        });
+    }
+
+    /** PM schedules with completion history, breakdowns and a few open work orders. */
+    private function ppplMaintenance(Company $company, User $manager): void
+    {
+        Tenant::run($company->id, function () use ($manager) {
+            Auth::setUser($manager);
+            mt_srand(20240401);
+            $svc = app(MaintenanceService::class);
+            $asset = fn (string $like) => Asset::where('name', 'like', "%{$like}%")->firstOrFail();
+            $ven = fn (string $c) => Vendor::where('code', $c)->value('id');
+            $today = CarbonImmutable::now()->startOfDay();
+
+            // [asset, code, title, unit, interval, start, daily avg, start reading, est cost, est hrs, assigned, vendor, stop completions after, checklist]
+            $defs = [
+                ['Machine 350T', 'PM-IMM-01', 'Monthly PM – hydraulics, lubrication & heater bands', 'months', 1, '2025-10-05', 0, 0, 8500, 4, 'Suresh Shinde', null, null, "Check hydraulic oil level & temperature\nGrease toggle & tie-bar bushes\nMeasure heater band currents\nClean oil cooler strainer"],
+                ['Machine 450T', 'PM-IMM-02', 'Monthly PM – hydraulics, lubrication & heater bands', 'months', 1, '2025-10-08', 0, 0, 11000, 5, 'Suresh Shinde', 'ENG', null, "Check hydraulic oil level & temperature\nGrease toggle & tie-bar bushes\nMeasure heater band currents\nCheck screw & barrel wear (quarterly)"],
+                ['Machine 650T', 'PM-IMM-03', 'Monthly PM – hydraulics, lubrication & heater bands', 'months', 1, '2025-10-12', 0, 0, 14000, 6, 'Rahul Kadam', 'HTN', '2026-08-31', "Check hydraulic oil level & temperature\nGrease toggle & tie-bar bushes\nMeasure heater band currents"],
+                ['Machine 220T (Two-shot)', 'PM-IMM-04', '2,000-hour service – oil filter, accumulator & rotary table', 'running_hours', 2000, '2025-07-01', 19, 1200, 32000, 8, 'Suresh Shinde', 'ENG', null, "Replace oil filter elements\nCheck accumulator pre-charge\nInspect rotary table bearings"],
+                ['Machine 280T', 'PM-IMM-05', '2,000-hour service – oil filter & screw inspection', 'running_hours', 2000, '2025-04-01', 20, 14500, 24000, 6, 'Rahul Kadam', 'HTN', '2026-06-30', "Replace oil filter elements\nScrew & barrel wear check\nNozzle and check-ring inspection"],
+                ['Bumper Bracket', 'PM-MLD-01', 'Mould PM every 1.5 lakh shots – clean, polish, ejector check', 'shots', 150000, '2026-03-01', 5200, 2860000, 9500, 6, 'Nitin Gaikwad', null, null, "Clean vents & parting line\nCheck ejector pins & return springs\nPolish cavity, check cooling flow"],
+                ['EV Connector', 'PM-MLD-02', 'Mould PM every 2.5 lakh shots – clean, polish, ejector check', 'shots', 250000, '2025-01-10', 1400, 0, 12500, 8, 'Nitin Gaikwad', 'SMT', null, "Clean vents & parting line\nCheck ejector pins & sleeves\nInspect core pins for wear"],
+                ['Screw Chiller', 'PM-AUX-01', 'Quarterly chiller service – condenser, refrigerant, controls', 'months', 3, '2025-01-15', 0, 0, 18500, 5, 'Blue Star AMC', 'BLU', null, "Clean condenser coils\nCheck refrigerant pressures\nInspect compressor oil & contactors"],
+                ['GA37', 'PM-AUX-02', '2,000-hour compressor service – oil, air & separator filters', 'running_hours', 2000, '2025-04-07', 21, 0, 27500, 4, 'Atlas Copco Service', 'ATL', null, "Change oil, oil filter & air filter\nCheck separator element ΔP\nDrain & test auto-drain valve"],
+                ['DG Set', 'PM-ELE-01', 'DG set 250-hour service – oil, filters, battery', 'running_hours', 250, '2025-01-05', 2.4, 3120, 9800, 3, 'Suresh Shinde', null, null, "Change engine oil & filters\nCheck coolant & battery\nLoad test 30 minutes"],
+                ['HT Substation', 'PM-ELE-02', 'Annual HT substation maintenance & statutory testing', 'years', 1, '2024-11-18', 0, 0, 65000, 10, 'Schneider Electric', 'SCH', null, "Transformer oil BDV test\nRelay testing & calibration\nEarth-pit resistance test"],
+                ['CMM', 'PM-QA-01', 'Half-yearly CMM calibration (NABL)', 'months', 6, '2024-10-25', 0, 0, 42000, 6, 'Meera Joshi', null, '2026-09-30', "Probe qualification\nVolumetric accuracy check (ISO 10360)\nIssue calibration certificate"],
+                ['Ultra T.7', 'PM-VEH-01', 'Quarterly vehicle service & PUC', 'months', 3, '2024-10-01', 0, 0, 12500, 4, 'Sagar Pawar', 'TAT', null, "Engine oil & filters\nBrake inspection\nPUC certificate renewal check"],
+                ['Nexon EV', 'PM-VEH-02', 'Quarterly EV service – battery health & brakes', 'months', 3, '2025-03-12', 0, 0, 4500, 2, 'Admin – Fleet', 'TAT', null, "Battery health report\nBrake pads & tyre rotation\nSoftware update"],
+            ];
+
+            $pms = [];
+            foreach ($defs as $d) {
+                [$like, $code, $title, $unit, $interval, $start, $avg, $reading, $estCost, $estHrs, $assigned, $vendor, $stop, $checklist] = $d;
+                $a = $asset($like);
+                $pm = new PmSchedule([
+                    'asset_id' => $a->id, 'vendor_id' => $vendor ? $ven($vendor) : null, 'code' => $code, 'title' => $title,
+                    'description' => 'Preventive maintenance as per OEM manual.', 'frequency_unit' => $unit, 'frequency_interval' => $interval,
+                    'start_date' => $start, 'meter_last_service_reading' => $reading, 'meter_current_reading' => $reading,
+                    'meter_daily_average' => $avg ?: null, 'alert_days_before' => in_array($unit, ['years'], true) ? 30 : 7,
+                    'estimated_cost' => $estCost, 'estimated_hours' => $estHrs, 'assigned_to' => $assigned,
+                    'checklist' => $checklist, 'is_active' => true,
+                ]);
+                $pm->next_due_date = $avg > 0
+                    ? CarbonImmutable::parse($start)->addDays((int) floor($interval / $avg))->toDateString()
+                    : $pm->computeNextDue(Carbon::parse($start))->toDateString();
+                $pm->save();
+                $pms[] = ['pm' => $pm, 'stop' => $stop, 'avg' => (float) $avg];
+            }
+
+            // Unplanned work (date order is preserved through the queue below)
+            $adhoc = [
+                ['2025-02-21', 'Machine 180T', 'corrective', 'medium', 'Barrel zone-3 heater band replaced', 'Zone 3 temperature not reaching set point.', 'Heater band open circuit', 'Replaced 2 heater bands and thermocouple', 2400, 6800, 0, 5, null, '2025-02-21 16:30'],
+                ['2025-08-11', 'Machine 450T', 'breakdown', 'critical', 'Main hydraulic pump failure – machine down', 'Loud noise from pump; pressure not building.', 'Hydraulic pump shaft seal failure; contaminated oil', 'Pump overhauled by Engel service; oil flushed and replaced; filters changed', 12000, 185000, 25000, 36, 'ENG', '2025-08-12 20:00'],
+                ['2025-12-04', 'Wire-cut EDM', 'corrective', 'low', 'Wire feed roller replaced', 'Wire breakage frequent.', 'Worn feed roller', 'Roller and guide replaced', 1500, 9200, 0, 3, null, '2025-12-04 15:00'],
+                ['2026-01-19', 'Machine 180T', 'breakdown', 'high', 'Mould clamp proximity switch failure', 'Machine not completing clamp cycle.', 'Proximity sensor water ingress', 'Sensor replaced, cable gland sealed', 1800, 4200, 0, 6, null, '2026-01-19 17:00'],
+                ['2026-05-06', 'Screw Chiller', 'breakdown', 'critical', 'Chiller trip – compressor contactor burnt', 'Chiller tripped on overload; mould temperatures rising.', 'Compressor contactor burnt due to loose terminal', 'Contactor & overload relay replaced; terminals re-torqued', 6000, 38500, 9000, 14, 'BLU', '2026-05-07 01:00'],
+                ['2026-09-24', 'Solar PV', 'inspection', 'low', 'Post-monsoon solar plant inspection', 'Inspect strings, inverters and earthing after monsoon.', null, 'IR scan done; 2 MC4 connectors replaced', 3500, 1800, 0, 0, null, '2026-09-25 13:00'],
+            ];
+            $open = [
+                ['2026-10-22', 'EV Connector', 'breakdown', 'critical', 'Ejector pin breakage – flash on cavities 5 & 6', 'Two ejector pins broken; flash on cavities 5 and 6. Mould pulled from machine.', 'in_progress', 'SMT'],
+                ['2026-10-28', 'DG Set', 'corrective', 'medium', 'Radiator seepage at bottom hose', 'Coolant seepage observed during weekly test run.', 'open', null],
+                ['2026-10-26', 'Hopper Dryer', 'corrective', 'low', 'Loader No. 4 vacuum switch faulty', 'Loader not cutting off at full level.', 'on_hold', null],
+            ];
+
+            $queue = [];
+            foreach ($adhoc as $x) {
+                $queue[] = [$x[0], 'adhoc', $x];
+            }
+            $cutoff = $today->subDays(2);
+            while (true) {
+                // earliest due PM that should already have been done
+                $best = null;
+                foreach ($pms as $k => $p) {
+                    $pm = $p['pm'];
+                    if (! $pm->next_due_date || $pm->next_due_date->gt($cutoff) || ($p['stop'] && $pm->next_due_date->toDateString() > $p['stop'])) {
+                        continue;
+                    }
+                    if ($best === null || $pm->next_due_date->lt($pms[$best]['pm']->next_due_date)) {
+                        $best = $k;
+                    }
+                }
+                usort($queue, fn ($x, $y) => strcmp($x[0], $y[0]));
+                $nextAdhoc = $queue[0] ?? null;
+                if ($best === null && ! $nextAdhoc) {
+                    break;
+                }
+                if ($nextAdhoc && ($best === null || $nextAdhoc[0] <= $pms[$best]['pm']->next_due_date->toDateString())) {
+                    array_shift($queue);
+                    [$date, $like, $type, $prio, $title, $desc, $cause, $action, $lab, $parts, $ext, $down, $vendor, $done] = $nextAdhoc[2];
+                    $wo = $svc->createWorkOrder($asset($like), [
+                        'type' => $type, 'priority' => $prio, 'title' => $title, 'description' => $desc, 'reported_date' => $date,
+                        'scheduled_date' => $date, 'assigned_to' => $vendor ? null : 'Suresh Shinde', 'vendor_id' => $vendor ? $ven($vendor) : null,
+                    ]);
+                    $svc->start($wo, $date.' 09:30');
+                    $svc->complete($wo->fresh(), ['completed_at' => $done, 'labour_cost' => $lab, 'parts_cost' => $parts, 'external_cost' => $ext,
+                        'downtime_hours' => $down, 'root_cause' => $cause, 'action_taken' => $action]);
+
+                    continue;
+                }
+                $p = $pms[$best];
+                $pm = $p['pm'];
+                $due = CarbonImmutable::parse($pm->next_due_date);
+                $doneAt = $due->addDays(mt_rand(0, 2))->setTime(mt_rand(10, 17), 0);
+                if ($doneAt->gt($cutoff->endOfDay())) {
+                    $doneAt = $due->setTime(15, 0);
+                }
+                $wo = $svc->createWorkOrder($pm->asset, [
+                    'pm_schedule_id' => $pm->id, 'type' => 'preventive', 'priority' => 'medium', 'title' => $pm->title,
+                    'description' => $pm->checklist, 'reported_date' => $due->toDateString(), 'scheduled_date' => $due->toDateString(),
+                    'assigned_to' => $pm->assigned_to, 'vendor_id' => $pm->vendor_id,
+                ]);
+                $data = ['completed_at' => $doneAt->toDateTimeString(), 'labour_cost' => round($pm->estimated_cost * mt_rand(25, 40) / 100, -1),
+                    'parts_cost' => round($pm->estimated_cost * mt_rand(45, 80) / 100, -1), 'external_cost' => $pm->vendor_id ? round($pm->estimated_cost * 0.2, -1) : 0,
+                    'downtime_hours' => $pm->estimated_hours, 'action_taken' => 'Checklist completed; no abnormality found.'];
+                if ($p['avg'] > 0) {
+                    $days = $pm->last_done_date ? $pm->last_done_date->diffInDays($doneAt) : CarbonImmutable::parse($pm->start_date)->diffInDays($doneAt);
+                    $data['meter_reading'] = round((float) $pm->meter_last_service_reading + max($pm->frequency_interval, $p['avg'] * $days), 0);
+                }
+                $svc->complete($wo->fresh(), $data);
+                $pm->refresh();
+            }
+
+            // Bring meter readings up to today and forecast the next due date
+            foreach ($pms as $p) {
+                $pm = $p['pm']->fresh();
+                if ($p['avg'] > 0) {
+                    $since = ($pm->last_done_date ?? $pm->start_date)->diffInDays($today);
+                    $pm->meter_current_reading = round((float) $pm->meter_last_service_reading + $p['avg'] * $since, 0);
+                    $svc->refreshNextDue($pm);
+                    $pm->save();
+                }
+            }
+
+            foreach ($open as [$date, $like, $type, $prio, $title, $desc, $status, $vendor]) {
+                $wo = $svc->createWorkOrder($asset($like), [
+                    'type' => $type, 'priority' => $prio, 'title' => $title, 'description' => $desc, 'reported_date' => $date,
+                    'scheduled_date' => $date, 'assigned_to' => $vendor ? 'Sai Mould Tech (tool maker)' : 'Suresh Shinde', 'vendor_id' => $vendor ? $ven($vendor) : null,
+                ]);
+                if ($status !== 'open') {
+                    $svc->start($wo, $date.' 11:00');
+                    if ($status === 'on_hold') {
+                        $wo->update(['status' => 'on_hold', 'action_taken' => 'Awaiting vacuum switch from OEM (PO raised).']);
+                    }
+                }
+            }
+            Auth::forgetUser();
+        });
     }
 
     private function isolationTestCompany(string $pwd): void
@@ -274,21 +531,36 @@ class DatabaseSeeder extends Seeder
             'gstin' => '24AAACA1111A1Z5', 'fy_start_month' => 4,
         ]);
         app(CompanyProvisioner::class)->provision($company);
-        $this->user($company->id, Role::CompanyAdmin, 'Acme Admin', 'admin@acme.test', $pwd, 'Admin');
+        $admin = $this->user($company->id, Role::CompanyAdmin, 'Acme Admin', 'admin@acme.test', $pwd, 'Admin');
 
-        Tenant::run($company->id, function () {
+        // A little of everything, so tenant-isolation checks have data to (not) leak
+        Tenant::run($company->id, function () use ($admin) {
+            Auth::setUser($admin);
             $slm = DepreciationMethod::where('code', 'SLM')->value('id');
             $cat = AssetCategory::create(['code' => 'ACMEPM', 'name' => 'ACME Secret Machinery', 'asset_code_prefix' => 'ACM', 'depreciation_method_id' => $slm, 'useful_life_years' => 15, 'residual_value_percent' => 5]);
             $loc = Location::create(['code' => 'ACMELOC', 'name' => 'ACME Ahmedabad Works', 'type' => 'plant', 'city' => 'Ahmedabad']);
+            $loc2 = Location::create(['code' => 'ACMELOC2', 'name' => 'ACME Secret Annexe', 'type' => 'warehouse', 'city' => 'Sanand']);
             $status = AssetStatus::where('code', 'ACTIVE')->value('id');
+            $assets = [];
             foreach (['ACME Secret Press 500T', 'ACME Secret Lathe'] as $n) {
-                Asset::create([
+                $assets[] = Asset::create([
                     'asset_code' => app(AssetCodeGenerator::class)->next($cat), 'name' => $n,
                     'asset_category_id' => $cat->id, 'location_id' => $loc->id, 'depreciation_method_id' => $slm,
-                    'asset_status_id' => $status, 'capitalization_date' => '2025-05-01', 'purchase_date' => '2025-04-20',
+                    'asset_status_id' => $status, 'capitalization_date' => '2026-08-01', 'purchase_date' => '2026-07-20',
                     'original_cost' => 2500000, 'residual_value' => 125000, 'useful_life_years' => 15,
                 ]);
             }
+            $dep = app(DepreciationService::class);
+            $dep->finalize($dep->post('2026-08-01', '2026-08-31', null, 'ACME secret run'));
+            $dep->post('2026-09-01', '2026-09-30', null, 'ACME secret run');
+            app(TransferService::class)->transfer($assets[0], ['transfer_date' => '2026-10-05', 'to_location_id' => $loc2->id, 'reason' => 'ACME secret transfer']);
+            $svc = app(MaintenanceService::class);
+            PmSchedule::create(['asset_id' => $assets[0]->id, 'code' => 'ACME-PM', 'title' => 'ACME secret PM', 'frequency_unit' => 'months', 'frequency_interval' => 1,
+                'start_date' => '2026-08-01', 'next_due_date' => '2026-09-01', 'is_active' => true]);
+            $svc->createWorkOrder($assets[0], ['type' => 'breakdown', 'priority' => 'high', 'title' => 'ACME secret breakdown', 'reported_date' => '2026-10-20']);
+            app(DisposalService::class)->dispose($assets[1], ['disposal_date' => '2026-10-15', 'disposal_type' => 'sale', 'buyer_name' => 'ACME Secret Buyer',
+                'sale_value' => 2400000, 'reason' => 'ACME secret disposal']);
+            Auth::forgetUser();
         });
     }
 }

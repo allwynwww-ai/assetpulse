@@ -30,6 +30,9 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // Every non-super-admin user belongs to an active company (see ResolveTenant).
+            'company_id' => fn () => \App\Models\Company::firstOrCreate(['code' => 'TEST'], ['name' => 'Test Company Pvt Ltd'])->id,
+            'role' => 'company_admin',
         ];
     }
 

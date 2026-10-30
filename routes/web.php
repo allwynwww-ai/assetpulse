@@ -3,6 +3,12 @@
 use App\Http\Controllers\Admin;
 use App\Http\Controllers\AssetController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DepreciationRunController;
+use App\Http\Controllers\DisposalController;
+use App\Http\Controllers\PmScheduleController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TransferController;
+use App\Http\Controllers\WorkOrderController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -104,6 +110,57 @@ Route::middleware('auth')->group(function () {
         Route::get('assets/{asset}', [AssetController::class, 'show'])->withTrashed()->name('assets.show');
         Route::get('assets/{asset}/qr', [AssetController::class, 'qr'])->name('assets.qr');
         Route::get('assets/{asset}/label', [AssetController::class, 'label'])->name('assets.label');
+
+        /*
+        | Depreciation: everyone reads; admin + asset manager preview / post / reverse;
+        | only the company admin finalises (locks) or unlocks a period.
+        */
+        Route::middleware('role:company_admin,asset_manager')->group(function () {
+            Route::get('depreciation/run', [DepreciationRunController::class, 'create'])->name('depreciation.create');
+            Route::post('depreciation/runs', [DepreciationRunController::class, 'store'])->name('depreciation.store');
+            Route::post('depreciation/runs/{run}/reverse', [DepreciationRunController::class, 'reverse'])->name('depreciation.reverse');
+        });
+        Route::middleware('role:company_admin')->group(function () {
+            Route::post('depreciation/runs/{run}/finalize', [DepreciationRunController::class, 'finalize'])->name('depreciation.finalize');
+            Route::post('depreciation/locks/{lock}/unlock', [DepreciationRunController::class, 'unlock'])->name('depreciation.locks.unlock');
+        });
+        Route::get('depreciation', [DepreciationRunController::class, 'index'])->name('depreciation.index');
+        Route::get('depreciation/runs/{run}', [DepreciationRunController::class, 'show'])->name('depreciation.show');
+
+        // Operations: admin + asset manager write, everyone reads
+        Route::middleware('role:company_admin,asset_manager')->group(function () {
+            Route::get('transfers/create', [TransferController::class, 'create'])->name('transfers.create');
+            Route::post('transfers', [TransferController::class, 'store'])->name('transfers.store');
+
+            Route::get('pm-schedules/create', [PmScheduleController::class, 'create'])->name('pm-schedules.create');
+            Route::post('pm-schedules', [PmScheduleController::class, 'store'])->name('pm-schedules.store');
+            Route::get('pm-schedules/{pmSchedule}/edit', [PmScheduleController::class, 'edit'])->name('pm-schedules.edit');
+            Route::put('pm-schedules/{pmSchedule}', [PmScheduleController::class, 'update'])->name('pm-schedules.update');
+            Route::delete('pm-schedules/{pmSchedule}', [PmScheduleController::class, 'destroy'])->name('pm-schedules.destroy');
+
+            Route::get('work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
+            Route::post('work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');
+            Route::get('work-orders/{workOrder}/edit', [WorkOrderController::class, 'edit'])->name('work-orders.edit');
+            Route::put('work-orders/{workOrder}', [WorkOrderController::class, 'update'])->name('work-orders.update');
+            Route::post('work-orders/{workOrder}/start', [WorkOrderController::class, 'start'])->name('work-orders.start');
+            Route::post('work-orders/{workOrder}/complete', [WorkOrderController::class, 'complete'])->name('work-orders.complete');
+            Route::post('work-orders/{workOrder}/cancel', [WorkOrderController::class, 'cancel'])->name('work-orders.cancel');
+
+            Route::get('disposals/create', [DisposalController::class, 'create'])->name('disposals.create');
+            Route::get('disposals/preview', [DisposalController::class, 'preview'])->name('disposals.preview');
+            Route::post('disposals', [DisposalController::class, 'store'])->name('disposals.store');
+        });
+        Route::get('transfers', [TransferController::class, 'index'])->name('transfers.index');
+        Route::get('transfers/{transfer}', [TransferController::class, 'show'])->name('transfers.show');
+        Route::get('pm-schedules', [PmScheduleController::class, 'index'])->name('pm-schedules.index');
+        Route::get('work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
+        Route::get('work-orders/{workOrder}', [WorkOrderController::class, 'show'])->name('work-orders.show');
+        Route::get('disposals', [DisposalController::class, 'index'])->name('disposals.index');
+        Route::get('disposals/{disposal}', [DisposalController::class, 'show'])->name('disposals.show');
+
+        // Reports (all roles) – ?export=xlsx|pdf
+        Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+        Route::get('reports/{report}', [ReportController::class, 'show'])->where('report', '[a-z\-]+')->name('reports.show');
     });
 });
 

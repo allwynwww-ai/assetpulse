@@ -106,15 +106,28 @@ class AssetController extends Controller
     {
         $asset->load(['category', 'location', 'department', 'costCenter', 'vendor', 'depreciationMethod', 'status', 'parentAsset', 'components', 'attachments.uploader', 'creator', 'updater']);
 
+        $asset->load([
+            'transfers.fromLocation', 'transfers.toLocation', 'transfers.fromDepartment', 'transfers.toDepartment',
+            'transfers.fromCostCenter', 'transfers.toCostCenter', 'transfers.requestedBy',
+            'pmSchedules' => fn ($q) => $q->orderByDesc('is_active')->orderBy('next_due_date'),
+            'workOrders' => fn ($q) => $q->limit(25), 'disposals.creator',
+        ]);
+        $entries = $asset->depreciationEntries()->with('run:id,run_number,status,run_type')->get();
+
         return view('assets.show', [
             'asset' => $asset,
+            'entries' => $entries,
+            'maintenanceCost' => (float) $asset->workOrders()->where('status', 'completed')->sum('total_cost'),
             'qrSvg' => $this->qrSvg($asset, 220),
             'history' => $asset->auditLogs()->limit(20)->get(),
         ]);
     }
 
-    public function edit(Asset $asset): View
+    public function edit(Asset $asset): View|RedirectResponse
     {
+        if ($asset->isDisposed()) {
+            return redirect()->route('assets.show', $asset)->with('error', 'This asset has been disposed and is read-only.');
+        }
         return view('assets.form', ['asset' => $asset, 'lookups' => $this->lookups(true, $asset), 'categoryData' => $this->categoryData()]);
     }
 
@@ -137,6 +150,12 @@ class AssetController extends Controller
 
     public function destroy(Asset $asset): RedirectResponse
     {
+        if ($asset->isDisposed()) {
+            return back()->with('error', 'A disposed asset is part of the audit record and cannot be deactivated.');
+        }
+        if ($asset->depreciationEntries()->exists()) {
+            return back()->with('error', "{$asset->asset_code} has posted depreciation. Deactivating it would break the books – dispose / scrap it instead, or reverse its depreciation runs first.");
+        }
         $asset->delete();
 
         return redirect()->route('assets.index')->with('success', "Asset {$asset->asset_code} deactivated. It can be restored from the Inactive view.");

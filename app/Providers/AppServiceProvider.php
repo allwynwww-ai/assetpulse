@@ -28,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-platform', fn (User $u) => $u->isSuperAdmin());
         Gate::define('manage-masters', fn (User $u) => $u->canManageMasters());
         Gate::define('manage-assets', fn (User $u) => $u->canManageAssets());
+        Gate::define('run-depreciation', fn (User $u) => $u->canManageAssets());
+        Gate::define('finalize-depreciation', fn (User $u) => $u->isCompanyAdmin() || $u->isSuperAdmin());
 
         // Security events into the audit trail
         Event::listen(Login::class, function (Login $e) {

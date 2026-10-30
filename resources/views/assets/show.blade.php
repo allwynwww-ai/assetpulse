@@ -1,5 +1,7 @@
 @php
     $canWrite = auth()->user()->canManageAssets();
+    $disposed = $asset->isDisposed();
+    $disposal = $asset->disposals->firstWhere('status', 'completed');
     $s = $asset->status;
     $row = fn ($label, $value) => '<div><dt class="dl-label">'.e($label).'</dt><dd class="dl-value">'.($value === null || $value === '' ? '<span class="text-slate-300">—</span>' : e($value)).'</dd></div>';
 @endphp
@@ -7,7 +9,10 @@
     <x-slot name="header">
         <x-page-header :title="$asset->name" icon="cube" :crumbs="['Assets' => route('assets.index'), $asset->asset_code => null]">
             <a href="{{ route('assets.label', $asset) }}" target="_blank" class="btn-secondary"><x-icon name="printer" class="h-4 w-4"/> Print label</a>
-            @if ($canWrite && ! $asset->trashed())
+            @if ($canWrite && ! $asset->trashed() && ! $disposed)
+                <a href="{{ route('work-orders.create', ['asset' => $asset->id]) }}" class="btn-secondary"><x-icon name="wrench" class="h-4 w-4"/> New work order</a>
+                <a href="{{ route('transfers.create', ['asset' => $asset->id]) }}" class="btn-secondary"><x-icon name="arrows" class="h-4 w-4"/> Transfer</a>
+                <a href="{{ route('disposals.create', ['asset' => $asset->id]) }}" class="btn-secondary text-rose-600"><x-icon name="trash" class="h-4 w-4"/> Dispose</a>
                 <a href="{{ route('assets.edit', $asset) }}" class="btn-primary"><x-icon name="pencil" class="h-4 w-4"/> Edit</a>
                 <form method="POST" action="{{ route('assets.destroy', $asset) }}" onsubmit="return confirm('Deactivate {{ $asset->asset_code }}? It will be hidden from the register but can be restored.')">@csrf @method('DELETE')
                     <button class="btn-ghost text-rose-600 hover:bg-rose-50"><x-icon name="trash" class="h-4 w-4"/> Deactivate</button>
@@ -22,6 +27,15 @@
             @if ($asset->location)<span class="text-slate-400">·</span><span class="text-slate-600">{{ $asset->location->name }}</span>@endif
         </div>
     </x-slot>
+
+    @if ($disposed && $disposal)
+        <div class="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <x-icon name="info" class="h-4 w-4 text-slate-400"/>
+            <span>{{ \Illuminate\Support\Str::headline($disposal->disposal_type) }} on <b>{{ fmt_date($disposal->disposal_date) }}</b> ({{ $disposal->disposal_number }}) — NBV {{ inr($disposal->nbv_at_disposal) }}, proceeds {{ inr($disposal->sale_value) }},
+                <b class="{{ $disposal->profit_loss < 0 ? 'text-rose-600' : 'text-emerald-700' }}">{{ $disposal->profit_loss < 0 ? 'loss' : 'profit' }} {{ inr(abs($disposal->profit_loss)) }}</b>. This record is read-only.</span>
+            <a href="{{ route('disposals.show', $disposal) }}" class="ml-auto text-brand-700 hover:underline">View disposal →</a>
+        </div>
+    @endif
 
     {{-- Value KPIs --}}
     <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -89,6 +103,110 @@
                     {!! $row('Insurance expiry', fmt_date($asset->insurance_expiry_date)) !!}
                     @if ($asset->notes)<div class="sm:col-span-3"><dt class="dl-label">Notes</dt><dd class="dl-value whitespace-pre-line">{{ $asset->notes }}</dd></div>@endif
                 </dl>
+            </div>
+
+            {{-- Depreciation schedule --}}
+            <div class="card" x-data="{ all: false }">
+                <div class="card-header">
+                    <div class="card-title">Depreciation schedule <span class="ml-1 text-slate-400">{{ $entries->count() }}</span></div>
+                    <div class="flex items-center gap-3 text-xs">
+                        <span class="text-slate-500">Charged to date {{ inr($entries->sum('depreciation_amount')) }}</span>
+                        <a href="{{ route('reports.show', ['depreciation-detail', 'q' => $asset->asset_code, 'run' => '']) }}" class="text-brand-700 hover:underline">Full report →</a>
+                    </div>
+                </div>
+                @if ($entries->isEmpty())
+                    <p class="card-body text-sm text-slate-400">No depreciation has been posted for this asset yet.</p>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="table text-sm">
+                            <thead><tr><th>Period</th><th>Run</th><th class="text-right">Days</th><th class="text-right">Opening WDV</th><th class="text-right">Charge</th><th class="text-right">Acc. dep.</th><th class="text-right">Closing WDV</th></tr></thead>
+                            <tbody>
+                            @foreach ($entries->reverse()->values() as $i => $e)
+                                <tr @if ($i >= 12) x-show="all" x-cloak @endif>
+                                    <td class="whitespace-nowrap">{{ $e->period_start->format('d M') }} – {{ $e->period_end->format('d M Y') }}</td>
+                                    <td class="whitespace-nowrap">@if ($e->run)<a href="{{ route('depreciation.show', $e->run) }}" class="font-mono text-xs text-brand-700">{{ $e->run->run_number }}</a> <x-pill :value="$e->run->run_type === 'disposal' ? 'disposal' : $e->run->status"/>@endif</td>
+                                    <td class="text-right tabular-nums">{{ $e->days }}</td>
+                                    <td class="text-right tabular-nums">{{ inr($e->opening_wdv, 2, false) }}</td>
+                                    <td class="text-right tabular-nums font-medium">{{ inr($e->depreciation_amount, 2, false) }}</td>
+                                    <td class="text-right tabular-nums">{{ inr($e->closing_accumulated_depreciation, 2, false) }}</td>
+                                    <td class="text-right tabular-nums">{{ inr($e->closing_wdv, 2, false) }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    @if ($entries->count() > 12)
+                        <div class="border-t border-slate-100 px-5 py-2 text-center"><button type="button" @click="all = !all" class="text-xs font-medium text-brand-700" x-text="all ? 'Show latest 12 only' : 'Show all {{ $entries->count() }} periods'"></button></div>
+                    @endif
+                @endif
+            </div>
+
+            {{-- Transfers --}}
+            <div class="card">
+                <div class="card-header"><div class="card-title">Transfer history <span class="ml-1 text-slate-400">{{ $asset->transfers->count() }}</span></div>
+                    @if ($canWrite && ! $disposed && ! $asset->trashed())<a href="{{ route('transfers.create', ['asset' => $asset->id]) }}" class="btn-ghost btn-sm"><x-icon name="arrows" class="h-3.5 w-3.5"/> Transfer</a>@endif</div>
+                @if ($asset->transfers->isEmpty())
+                    <p class="card-body text-sm text-slate-400">This asset has not been moved since it was put to use.</p>
+                @else
+                    <ol class="divide-y divide-slate-100">
+                        @foreach ($asset->transfers as $t)
+                            <li class="flex flex-wrap items-start gap-x-4 gap-y-1 px-5 py-3 text-sm">
+                                <div class="w-24 shrink-0 text-xs text-slate-500">{{ fmt_date($t->transfer_date) }}<br><a href="{{ route('transfers.show', $t) }}" class="font-mono text-brand-700">{{ $t->transfer_number }}</a></div>
+                                <div class="min-w-0 flex-1">
+                                    @foreach ([['Location', $t->fromLocation?->name, $t->toLocation?->name], ['Department', $t->fromDepartment?->name, $t->toDepartment?->name], ['Cost center', $t->fromCostCenter?->code, $t->toCostCenter?->code], ['Custodian', $t->from_custodian, $t->to_custodian]] as [$lbl, $a, $b])
+                                        @if ($a !== $b)<div><span class="text-slate-400">{{ $lbl }}:</span> {{ $a ?: '—' }} <span class="text-slate-400">→</span> <span class="font-medium text-slate-800">{{ $b ?: '—' }}</span></div>@endif
+                                    @endforeach
+                                    <div class="text-xs text-slate-500">{{ $t->reason }}@if ($t->affects_depreciation) · <span class="text-sky-700">depreciation split by cost center</span>@endif</div>
+                                </div>
+                            </li>
+                        @endforeach
+                    </ol>
+                @endif
+            </div>
+
+            {{-- Maintenance --}}
+            <div class="card">
+                <div class="card-header"><div class="card-title">Maintenance</div>
+                    <div class="flex items-center gap-2 text-xs"><span class="text-slate-500">Spend to date {{ inr($maintenanceCost) }}</span>
+                        @if ($canWrite && ! $disposed && ! $asset->trashed())<a href="{{ route('pm-schedules.create', ['asset' => $asset->id]) }}" class="btn-ghost btn-sm"><x-icon name="calendar" class="h-3.5 w-3.5"/> PM</a><a href="{{ route('work-orders.create', ['asset' => $asset->id]) }}" class="btn-ghost btn-sm"><x-icon name="wrench" class="h-3.5 w-3.5"/> Work order</a>@endif</div></div>
+                @if ($asset->pmSchedules->isNotEmpty())
+                    <div class="border-b border-slate-100 px-5 py-3">
+                        <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">PM schedules</div>
+                        <div class="space-y-2">
+                            @foreach ($asset->pmSchedules as $pm)
+                                @php $over = $pm->is_active && $pm->next_due_date && $pm->next_due_date->isPast() && ! $pm->next_due_date->isToday(); $soon = $pm->is_active && $pm->next_due_date && ! $over && $pm->next_due_date->lte(now()->addDays(30)); @endphp
+                                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                                    <a href="{{ $canWrite ? route('pm-schedules.edit', $pm) : route('pm-schedules.index') }}" class="font-medium text-slate-800 hover:text-brand-700">{{ $pm->title }}</a>
+                                    <span class="text-xs text-slate-400">every {{ $pm->frequency_interval }} {{ str_replace('_', ' ', $pm->frequency_unit) }}</span>
+                                    <span class="ml-auto text-xs {{ $over ? 'font-semibold text-rose-600' : ($soon ? 'font-semibold text-amber-600' : 'text-slate-500') }}">
+                                        {{ ! $pm->is_active ? 'Inactive' : ($pm->next_due_date ? ($over ? 'Overdue since ' : 'Due ').fmt_date($pm->next_due_date) : 'Not scheduled') }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+                @if ($asset->workOrders->isEmpty())
+                    <p class="card-body text-sm text-slate-400">No work orders recorded.</p>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="table text-sm">
+                            <thead><tr><th>WO</th><th>Reported</th><th>Type</th><th>Title</th><th>Status</th><th class="text-right">Downtime</th><th class="text-right">Cost</th></tr></thead>
+                            <tbody>
+                            @foreach ($asset->workOrders as $wo)
+                                <tr>
+                                    <td class="whitespace-nowrap"><a href="{{ route('work-orders.show', $wo) }}" class="font-mono text-xs text-brand-700">{{ $wo->wo_number }}</a></td>
+                                    <td class="whitespace-nowrap">{{ fmt_date($wo->reported_date) }}</td>
+                                    <td><x-pill :value="$wo->type"/></td>
+                                    <td class="max-w-xs truncate" title="{{ $wo->title }}">{{ $wo->title }}</td>
+                                    <td><x-pill :value="$wo->status"/></td>
+                                    <td class="text-right tabular-nums">{{ $wo->downtime_hours > 0 ? rtrim(rtrim(number_format($wo->downtime_hours, 1), '0'), '.').' h' : '—' }}</td>
+                                    <td class="text-right tabular-nums">{{ inr($wo->total_cost, 0) }}</td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
             </div>
 
             {{-- Attachments --}}
@@ -162,15 +280,6 @@
                     </ul>
                 </div>
             @endif
-
-            <div class="card">
-                <div class="card-header"><div class="card-title">Coming in Phase 2</div></div>
-                <div class="card-body space-y-2 text-sm text-slate-500">
-                    @foreach ([['calculator', 'Depreciation schedule & postings'], ['arrows', 'Transfers between plants / departments'], ['wrench', 'Preventive maintenance & work orders'], ['trash', 'Disposal with profit / loss']] as [$i, $l])
-                        <div class="flex items-center gap-2"><x-icon :name="$i" class="h-4 w-4 text-slate-300"/>{{ $l }}</div>
-                    @endforeach
-                </div>
-            </div>
 
             <div class="card">
                 <div class="card-header"><div class="card-title">Change history</div><x-icon name="shield" class="h-4 w-4 text-slate-400"/></div>

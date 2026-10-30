@@ -1,5 +1,5 @@
 @php
-    $colors = ['created' => 'mint', 'updated' => 'brand', 'deactivated' => 'rose', 'deleted' => 'rose', 'restored' => 'amber'];
+    $colors = ['created' => 'mint', 'updated' => 'brand', 'deactivated' => 'rose', 'deleted' => 'rose', 'restored' => 'amber', 'posted' => 'sky', 'finalized' => 'emerald', 'reversed' => 'rose', 'unlocked' => 'amber'];
 @endphp
 @forelse ($logs as $log)
     <div class="relative pb-5 pl-6 last:pb-0">

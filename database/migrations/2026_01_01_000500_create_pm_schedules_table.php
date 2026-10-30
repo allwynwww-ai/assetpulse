@@ -21,6 +21,9 @@ return new class extends Migration
             $table->date('start_date')->nullable();
             $table->date('last_done_date')->nullable();
             $table->date('next_due_date')->nullable();
+            $table->decimal('meter_last_service_reading', 14, 2)->nullable()->comment('Hours / shots at last service');
+            $table->decimal('meter_current_reading', 14, 2)->nullable();
+            $table->decimal('meter_daily_average', 12, 2)->nullable()->comment('Average hours or shots per day, used to forecast the due date');
             $table->unsignedSmallInteger('alert_days_before')->default(7);
             $table->decimal('estimated_cost', 18, 2)->default(0);
             $table->decimal('estimated_hours', 8, 2)->nullable();
