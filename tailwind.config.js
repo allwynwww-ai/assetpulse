@@ -10,7 +10,7 @@ export default {
         './app/**/*.php',
     ],
     safelist: [
-        { pattern: /(bg|text|ring|border)-(emerald|amber|sky|rose|slate|violet|blue|indigo|teal|orange|brand|mint)-(50|100|200|300|500|600|700)/ },
+        { pattern: /^(bg|text|ring|border)-(emerald|amber|sky|rose|slate|violet|blue|indigo|teal|orange|brand|mint)-(50|100|200|300|500|600|700)$/ },
     ],
     theme: {
         extend: {
