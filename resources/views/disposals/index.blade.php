@@ -26,7 +26,7 @@
                     <tr>
                         <td><a href="{{ route('disposals.show', $d) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $d->disposal_number }}</a></td>
                         <td class="whitespace-nowrap text-sm">{{ fmt_date($d->disposal_date) }}</td>
-                        <td><a href="{{ route('assets.show', $d->asset_id) }}" class="font-mono text-xs text-brand-700">{{ $d->asset?->asset_code }}</a><div class="max-w-[14rem] truncate text-sm">{{ $d->asset?->name }}</div></td>
+                        <td><a href="{{ route('assets.show', $d->asset_id) }}" class="font-mono text-xs text-brand-700">{{ $d->asset?->asset_code }}</a><div class="line-clamp-2 min-w-[12rem] max-w-[18rem] text-sm" title="{{ $d->asset?->name }}">{{ $d->asset?->name }}</div></td>
                         <td><x-pill :value="$d->disposal_type"/></td>
                         <td class="text-right tabular-nums text-sm">{{ inr($d->gross_block_at_disposal, 0) }}</td>
                         <td class="text-right tabular-nums text-sm">{{ inr($d->accumulated_depreciation_at_disposal, 0) }}</td>

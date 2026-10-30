@@ -319,6 +319,8 @@ class ReportBuilder
         return [
             'filters' => $filters, 'applied' => $this->applied($filters, $r), 'rows' => $rows, 'notes' => $notes,
             'title' => 'Property, Plant & Equipment – '.$fy->name.' (Schedule II / Ind AS 16)',
+            // On screen the "Method · life" column is shown under the asset class to save width; exports keep it separate.
+            'screenMerge' => ['basis' => 'category'],
             'groupHeaders' => [['', 2], ['Gross block (at cost)', 4], ['Accumulated depreciation', 4], ['Net block', 2]],
             'columns' => [self::col('category', 'Asset class'), self::col('basis', 'Method · life'),
                 self::col('gross_open', 'As at '.$fy->start_date->format('d M Y'), 'money', true), self::col('additions', 'Additions', 'money', true), self::col('deletions', 'Deletions', 'money', true), self::col('gross_close', 'As at '.$fy->end_date->format('d M Y'), 'money', true),

@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <nav class="flex-1 overflow-y-auto px-3 pb-6">
+    <nav class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
         @if ($hasTenant)
             <div class="nav-section">Overview</div>
             <a href="{{ route('dashboard') }}" class="{{ $link('dashboard') }}"><x-icon name="home"/> Dashboard</a>
@@ -67,12 +67,13 @@
                 <a href="{{ route('admin.audit-logs.index') }}" class="{{ $link('admin.audit-logs.*') }}"><x-icon name="shield"/> Platform Audit Log</a>
             @endunless
         @endif
-    </nav>
 
-    <div class="border-t border-slate-100 p-4">
-        <div class="rounded-xl bg-gradient-to-br from-brand-50 to-mint-50 p-3 text-xs text-slate-600">
-            <div class="font-semibold text-slate-800">Schedule II compliant</div>
-            Companies Act 2013 · Ind AS 16
+        {{-- Footer lives inside the scroll area so it can never cover the last nav items --}}
+        <div class="mt-6 border-t border-slate-100 px-1 pt-4">
+            <div class="rounded-xl bg-gradient-to-br from-brand-50 to-mint-50 p-3 text-xs text-slate-600">
+                <div class="font-semibold text-slate-800">Schedule II compliant</div>
+                Companies Act 2013 · Ind AS 16
+            </div>
         </div>
-    </div>
+    </nav>
 </div>

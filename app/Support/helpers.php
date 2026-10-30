@@ -43,3 +43,17 @@ if (! function_exists('fmt_date')) {
         return $date ? \Illuminate\Support\Carbon::parse($date)->format($format) : '—';
     }
 }
+
+if (! function_exists('greeting')) {
+    /** Time-of-day greeting in the app timezone (Asia/Kolkata): 05–11 morning, 12–16 afternoon, otherwise evening. */
+    function greeting(?\DateTimeInterface $at = null): string
+    {
+        $h = (int) \Illuminate\Support\Carbon::instance($at ?? now())->setTimezone(config('app.timezone'))->format('G');
+
+        return match (true) {
+            $h >= 5 && $h < 12 => 'Good morning',
+            $h >= 12 && $h < 17 => 'Good afternoon',
+            default => 'Good evening',
+        };
+    }
+}

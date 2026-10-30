@@ -21,7 +21,7 @@
                     <tr>
                         <td><a href="{{ route('transfers.show', $t) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $t->transfer_number }}</a>@if ($t->affects_depreciation)<div class="text-[10px] text-amber-600">CC split</div>@endif</td>
                         <td class="whitespace-nowrap text-sm">{{ fmt_date($t->transfer_date) }}</td>
-                        <td><a href="{{ route('assets.show', $t->asset_id) }}" class="font-mono text-xs text-brand-700">{{ $t->asset?->asset_code }}</a><div class="max-w-[14rem] truncate text-sm text-slate-700">{{ $t->asset?->name }}</div></td>
+                        <td><a href="{{ route('assets.show', $t->asset_id) }}" class="font-mono text-xs text-brand-700">{{ $t->asset?->asset_code }}</a><div class="line-clamp-2 min-w-[12rem] max-w-[18rem] text-sm text-slate-700" title="{{ $t->asset?->name }}">{{ $t->asset?->name }}</div></td>
                         <td class="text-sm"><div>{{ $t->fromLocation?->name ?? '—' }}</div><div class="text-xs text-slate-400">{{ $t->fromDepartment?->name }} · {{ $t->fromCostCenter?->code }}</div></td>
                         <td class="text-slate-300"><x-icon name="chevron-right" class="h-4 w-4"/></td>
                         <td class="text-sm"><div class="font-medium">{{ $t->toLocation?->name ?? '—' }}</div><div class="text-xs text-slate-400">{{ $t->toDepartment?->name }} · {{ $t->toCostCenter?->code }}</div></td>

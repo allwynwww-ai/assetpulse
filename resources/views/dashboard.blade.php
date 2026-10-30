@@ -1,7 +1,7 @@
 @php $canWrite = auth()->user()->canManageAssets(); @endphp
 <x-app-layout title="Dashboard">
     <x-slot name="header">
-        <x-page-header title="Good {{ now()->hour < 12 ? 'morning' : (now()->hour < 17 ? 'afternoon' : 'evening') }}, {{ \Illuminate\Support\Str::before(auth()->user()->name.' ', ' ') }}"
+        <x-page-header title="{{ greeting() }}, {{ \Illuminate\Support\Str::before(auth()->user()->name.' ', ' ') }}"
                        :subtitle="($currentCompany?->name ?? '').($currentFy ? ' · '.$currentFy->name : '').($lockedThrough ? ' · books locked through '.fmt_date($lockedThrough) : '')" icon="home">
             <a href="{{ route('reports.index') }}" class="btn-secondary"><x-icon name="chart" class="h-4 w-4"/> Reports</a>
             @if ($canWrite)<a href="{{ route('assets.create') }}" class="btn-primary"><x-icon name="plus" class="h-4 w-4"/> Add asset</a>@endif
@@ -45,7 +45,20 @@
     <div class="mb-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-5">
         <div class="card xl:col-span-2">
             <div class="card-header"><div class="card-title">Gross block by category</div><a href="{{ route('reports.show', 'assets-by-category') }}" class="text-xs font-medium text-brand-600 hover:underline">Report →</a></div>
-            <div class="card-body"><div class="relative h-64"><canvas id="chartCategory"></canvas></div></div>
+            @php $cat = $charts['category']; $catTotal = max((float) collect($cat['values'])->sum(), 1); @endphp
+            <div class="card-body flex flex-col items-center gap-5 sm:flex-row sm:items-start lg:flex-col lg:items-center 2xl:flex-row 2xl:items-start">
+                <div class="relative h-48 w-48 shrink-0 sm:mt-1 lg:mt-0 2xl:mt-1"><canvas id="chartCategory"></canvas></div>
+                <ul class="w-full min-w-0 flex-1 space-y-1.5 text-xs">
+                    @foreach ($cat['labels'] as $i => $label)
+                        <li class="flex items-start gap-2">
+                            <span class="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-sm" style="background: {{ $cat['colors'][$i] ?? '#94a3b8' }}"></span>
+                            <span class="min-w-0 flex-1 leading-4 text-slate-600">{{ $label }} <span class="text-slate-400">({{ $cat['counts'][$i] ?? 0 }})</span></span>
+                            <span class="shrink-0 whitespace-nowrap text-right font-medium tabular-nums text-slate-800">{{ inr_short($cat['values'][$i]) }}</span>
+                            <span class="w-9 shrink-0 text-right tabular-nums text-slate-400">{{ number_format($cat['values'][$i] * 100 / $catTotal, 0) }}%</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
         </div>
         <div class="card xl:col-span-3">
             <div class="card-header"><div class="card-title">Cost vs NBV by location</div><a href="{{ route('reports.show', 'assets-by-location') }}" class="text-xs font-medium text-brand-600 hover:underline">Report →</a></div>
@@ -67,8 +80,8 @@
                     <li class="flex items-center gap-3 px-5 py-2.5 text-sm">
                         <div class="w-14 shrink-0 text-center"><div class="text-[10px] font-semibold uppercase {{ $over ? 'text-rose-600' : 'text-amber-600' }}">{{ $pm->next_due_date->format('M') }}</div><div class="text-lg font-bold leading-5 {{ $over ? 'text-rose-600' : 'text-slate-800' }}">{{ $pm->next_due_date->format('d') }}</div></div>
                         <div class="min-w-0 flex-1">
-                            <div class="truncate font-medium text-slate-800">{{ $pm->title }}</div>
-                            <div class="truncate text-xs text-slate-500"><a href="{{ route('assets.show', $pm->asset_id) }}" class="font-mono text-brand-700">{{ $pm->asset?->asset_code }}</a> {{ $pm->asset?->name }}</div>
+                            <div class="line-clamp-2 font-medium leading-5 text-slate-800" title="{{ $pm->title }}">{{ $pm->title }}</div>
+                            <div class="line-clamp-2 text-xs text-slate-500" title="{{ $pm->asset?->asset_code }} {{ $pm->asset?->name }}"><a href="{{ route('assets.show', $pm->asset_id) }}" class="font-mono text-brand-700">{{ $pm->asset?->asset_code }}</a> {{ $pm->asset?->name }}</div>
                         </div>
                         @if ($over)<span class="badge bg-rose-50 text-rose-700 ring-rose-200">{{ (int) $pm->next_due_date->diffInDays(today()) }}d late</span>
                         @elseif ($canWrite)<a href="{{ route('work-orders.create', ['pm' => $pm->id]) }}" class="btn-ghost btn-sm" title="Raise work order"><x-icon name="wrench" class="h-3.5 w-3.5"/></a>@endif
@@ -86,7 +99,7 @@
                 @forelse ($endingLife as $a)
                     <li class="flex items-center gap-3 px-5 py-2.5 text-sm">
                         <div class="min-w-0 flex-1">
-                            <a href="{{ route('assets.show', $a) }}" class="block truncate font-medium text-slate-800 hover:text-brand-700">{{ $a->name }}</a>
+                            <a href="{{ route('assets.show', $a) }}" class="line-clamp-2 font-medium text-slate-800 hover:text-brand-700" title="{{ $a->name }}">{{ $a->name }}</a>
                             <div class="text-xs text-slate-500"><span class="font-mono">{{ $a->asset_code }}</span> · NBV {{ inr($a->current_book_value, 0) }}</div>
                         </div>
                         <div class="text-right text-xs"><div class="font-semibold text-slate-700">{{ fmt_date($a->eol) }}</div><div class="text-slate-400">{{ max(0, (int) now()->diffInMonths(\Illuminate\Support\Carbon::parse($a->eol))) }} mo left</div></div>
@@ -114,7 +127,7 @@
                 <ul class="divide-y divide-slate-100">
                     @forelse ($recent as $a)
                         <li class="flex items-center gap-3 px-5 py-2.5 text-sm">
-                            <div class="min-w-0 flex-1"><a href="{{ route('assets.show', $a) }}" class="block truncate font-medium text-slate-800 hover:text-brand-700">{{ $a->name }}</a>
+                            <div class="min-w-0 flex-1"><a href="{{ route('assets.show', $a) }}" class="line-clamp-2 font-medium text-slate-800 hover:text-brand-700" title="{{ $a->name }}">{{ $a->name }}</a>
                                 <div class="truncate text-xs text-slate-500"><span class="font-mono">{{ $a->asset_code }}</span> · {{ $a->location?->name }}</div></div>
                             <div class="text-right text-xs font-semibold text-slate-700">{{ inr_short($a->original_cost) }}</div>
                         </li>
@@ -133,7 +146,7 @@
             new Chart(document.getElementById('chartCategory'), {
                 type: 'doughnut',
                 data: { labels: d.category.labels, datasets: [{ data: d.category.values, backgroundColor: d.category.colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
-                options: { cutout: '62%', plugins: { legend: { position: 'right' },
+                options: { cutout: '62%', maintainAspectRatio: false, plugins: { legend: { display: false },
                     tooltip: { callbacks: { label: (c) => ` ${c.label}: ${window.inr(c.parsed, true)} (${d.category.counts[c.dataIndex]} assets)` } } } },
             });
             new Chart(document.getElementById('chartLocation'), {

@@ -33,9 +33,9 @@
                         $state = $days === null ? null : ($days < 0 ? 'overdue' : ($days <= 30 ? 'due' : 'ok'));
                     @endphp
                     <tr>
-                        <td><a href="{{ route('assets.show', $pm->asset_id) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $pm->asset?->asset_code }}</a><div class="max-w-[14rem] truncate text-sm text-slate-700">{{ $pm->asset?->name }}</div><div class="text-xs text-slate-400">{{ $pm->asset?->location?->name }}</div></td>
-                        <td><div class="text-sm font-medium text-slate-800">{{ $pm->title }}</div><div class="text-xs text-slate-400">{{ $pm->code }} {{ $pm->assigned_to ? '· '.$pm->assigned_to : '' }}</div></td>
-                        <td class="whitespace-nowrap text-sm">Every {{ number_format($pm->frequency_interval) }} {{ strtolower(\App\Models\PmSchedule::FREQUENCY_UNITS[$pm->frequency_unit] ?? $pm->frequency_unit) }}</td>
+                        <td><a href="{{ route('assets.show', $pm->asset_id) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $pm->asset?->asset_code }}</a><div class="line-clamp-2 min-w-[11rem] max-w-[16rem] text-sm text-slate-700" title="{{ $pm->asset?->name }}">{{ $pm->asset?->name }}</div><div class="text-xs text-slate-400">{{ $pm->asset?->location?->name }}</div></td>
+                        <td class="min-w-[14rem]"><div class="line-clamp-2 text-sm font-medium text-slate-800" title="{{ $pm->title }}">{{ $pm->title }}</div><div class="text-xs text-slate-400">{{ $pm->code }} {{ $pm->assigned_to ? '· '.$pm->assigned_to : '' }}</div></td>
+                        <td class="min-w-[7rem] text-sm">Every {{ number_format($pm->frequency_interval) }} {{ strtolower(\App\Models\PmSchedule::FREQUENCY_UNITS[$pm->frequency_unit] ?? $pm->frequency_unit) }}</td>
                         <td class="whitespace-nowrap text-sm">{{ fmt_date($pm->last_done_date) }}</td>
                         <td class="whitespace-nowrap">
                             <div class="text-sm font-medium">{{ fmt_date($pm->next_due_date) }}</div>

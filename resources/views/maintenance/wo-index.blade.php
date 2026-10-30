@@ -30,7 +30,7 @@
                 @forelse ($workOrders as $wo)
                     <tr>
                         <td><a href="{{ route('work-orders.show', $wo) }}" class="font-mono text-xs font-semibold text-brand-700">{{ $wo->wo_number }}</a></td>
-                        <td><a href="{{ route('assets.show', $wo->asset_id) }}" class="font-mono text-xs text-brand-700">{{ $wo->asset?->asset_code }}</a><div class="max-w-[12rem] truncate text-xs text-slate-500">{{ $wo->asset?->name }}</div></td>
+                        <td><a href="{{ route('assets.show', $wo->asset_id) }}" class="font-mono text-xs text-brand-700">{{ $wo->asset?->asset_code }}</a><div class="line-clamp-2 min-w-[12rem] max-w-[18rem] text-xs text-slate-500" title="{{ $wo->asset?->name }}">{{ $wo->asset?->name }}</div></td>
                         <td class="max-w-xs"><a href="{{ route('work-orders.show', $wo) }}" class="text-sm font-medium text-slate-800 hover:text-brand-700">{{ $wo->title }}</a></td>
                         <td><x-pill :value="$wo->type"/></td>
                         <td><x-pill :value="$wo->priority"/></td>
