@@ -27,4 +27,22 @@ window.inr = (v, compact = false) => {
     return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 };
 
+/**
+ * Layout sidebar: off-canvas drawer below lg (sidebarOpen), collapsible icon
+ * rail on lg+ (html.sb-collapsed, persisted in localStorage; the inline head
+ * script applies it before paint).
+ */
+const SIDEBAR_KEY = 'ap.sidebar';
+window.sidebarState = () => ({
+    sidebarOpen: false,
+    collapsed: document.documentElement.classList.contains('sb-collapsed'),
+    toggleSidebar() {
+        this.collapsed = !this.collapsed;
+        document.documentElement.classList.toggle('sb-collapsed', this.collapsed);
+        try { localStorage.setItem(SIDEBAR_KEY, this.collapsed ? 'collapsed' : 'expanded'); } catch (e) { /* private mode */ }
+        // Let Chart.js (and anything else listening) re-measure once the width transition has finished
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 230);
+    },
+});
+
 Alpine.start();

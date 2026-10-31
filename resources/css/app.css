@@ -67,3 +67,37 @@
     .dl-value { @apply mt-0.5 text-sm text-slate-800; }
 }
 .table-compact tbody tr > :first-child { min-width: 9.5rem; }
+
+/* ---------------------------------------------------------------------------
+   Collapsible sidebar. Desktop (lg+) only: html.sb-collapsed turns the sidebar
+   into a 72px icon rail and the content reclaims the space. The class is set by
+   an inline <head> script from localStorage, so there is no flash on load.
+   Below lg the sidebar is always a full-width off-canvas drawer.
+--------------------------------------------------------------------------- */
+.app-sidebar { transition: transform 200ms ease, width 200ms ease; }
+.app-content { transition: padding-left 200ms ease; }
+.nav-link { position: relative; }
+.nav-label { @apply min-w-0 truncate; }
+
+@media (min-width: 1024px) {
+    html.sb-collapsed .app-sidebar { width: 72px; }
+    html.sb-collapsed .app-content { padding-left: 72px; }
+    html.sb-collapsed .sb-toggle-chevron { transform: rotate(180deg); }
+
+    html.sb-collapsed .sb-brand { @apply justify-center px-0; }
+    html.sb-collapsed .sb-brand-text,
+    html.sb-collapsed .sb-footer,
+    html.sb-collapsed .nav-label { display: none; }
+
+    html.sb-collapsed .app-sidebar nav { @apply px-2; overflow-x: hidden; }
+    /* section headings become thin dividers so groups stay visible */
+    html.sb-collapsed .nav-section { @apply mx-2 mb-2 mt-3 h-0 overflow-hidden border-t border-slate-100 p-0; font-size: 0; }
+    html.sb-collapsed .nav-section:first-child { @apply mt-2 border-transparent; }
+    html.sb-collapsed .nav-link { @apply mx-auto h-10 w-10 justify-center gap-0 p-0; }
+    html.sb-collapsed .nav-link + .nav-link { @apply mt-1; }
+    html.sb-collapsed .nav-link svg { @apply h-5 w-5; }
+    /* count badges shrink to a corner bubble */
+    html.sb-collapsed .nav-badge { @apply absolute -right-0.5 -top-0.5 ml-0 min-w-[16px] px-1 text-center text-[9px] leading-4 ring-2 ring-white; }
+}
+/* keep the focus ring for keyboard users only on the sidebar toggle */
+.sidebar-toggle:focus:not(:focus-visible) { box-shadow: none; }

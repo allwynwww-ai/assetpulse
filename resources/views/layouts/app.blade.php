@@ -7,24 +7,32 @@
     <title>{{ isset($title) ? $title.' · ' : '' }}{{ config('app.name', 'AssetPulse') }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
+    {{-- Apply the saved desktop sidebar state before first paint (no flash) --}}
+    <script>try{if(localStorage.getItem('ap.sidebar')==='collapsed')document.documentElement.classList.add('sb-collapsed')}catch(e){}</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="h-full font-sans" x-data="{ sidebarOpen: false }">
+<body class="h-full font-sans" x-data="sidebarState()" @keydown.escape.window="sidebarOpen = false" @resize.window.debounce.150ms="if (window.innerWidth >= 1024) sidebarOpen = false">
 <div class="min-h-full">
     {{-- Mobile overlay --}}
     <div x-cloak x-show="sidebarOpen" class="fixed inset-0 z-30 bg-slate-900/30 backdrop-blur-sm lg:hidden" @click="sidebarOpen = false"></div>
 
     {{-- Sidebar --}}
-    <aside class="fixed inset-y-0 left-0 z-40 w-64 transform border-r border-slate-200/80 bg-white transition-transform duration-200 lg:translate-x-0"
-           :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+    <aside id="app-sidebar" class="app-sidebar fixed inset-y-0 left-0 z-40 w-64 max-w-[85vw] -translate-x-full transform border-r border-slate-200/80 bg-white shadow-xl lg:translate-x-0 lg:shadow-none"
+           :class="sidebarOpen ? '!translate-x-0' : ''" aria-label="Main navigation">
         @include('layouts.sidebar')
     </aside>
 
-    <div class="lg:pl-64 flex min-h-screen flex-col">
+    <div class="app-content flex min-h-screen flex-col lg:pl-64">
         {{-- Top bar --}}
         <header class="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-slate-200/80 bg-white/85 px-4 backdrop-blur sm:px-6 lg:px-8">
-            <button type="button" class="btn-ghost -ml-2 p-2 lg:hidden" @click="sidebarOpen = true" aria-label="Open menu">
+            <button type="button" class="btn-ghost -ml-2 p-2 lg:hidden" @click="sidebarOpen = true" aria-label="Open menu" aria-controls="app-sidebar" :aria-expanded="sidebarOpen.toString()">
                 <x-icon name="menu" />
+            </button>
+            {{-- Desktop: collapse sidebar to an icon rail / expand it back --}}
+            <button type="button" id="sidebar-toggle" class="sidebar-toggle btn-ghost -ml-2 hidden p-2 lg:inline-flex" @click="toggleSidebar()"
+                    aria-controls="app-sidebar" :aria-expanded="(!collapsed).toString()" :title="collapsed ? 'Expand sidebar' : 'Collapse sidebar'" title="Collapse sidebar">
+                <x-icon name="sidebar" class="h-5 w-5"/>
+                <x-icon name="chevron-double-left" class="sb-toggle-chevron h-4 w-4 -ml-1.5 transition-transform duration-200"/>
             </button>
 
             @if (Tenant::id())
