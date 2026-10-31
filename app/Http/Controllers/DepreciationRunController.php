@@ -77,7 +77,7 @@ class DepreciationRunController extends Controller
             ->with(['asset:id,asset_code,name,asset_category_id', 'asset.category:id,name', 'costCenter:id,code,name', 'location:id,name'])
             ->when($request->filled('category'), fn ($q) => $q->where('asset_category_id', $request->category))
             ->when($request->filled('cost_center'), fn ($q) => $q->where('cost_center_id', $request->cost_center))
-            ->when($request->filled('q'), fn ($q) => $q->whereHas('asset', fn ($a) => $a->withTrashed()->where(fn ($w) => $w->where('asset_code', 'like', '%'.$request->q.'%')->orWhere('name', 'like', '%'.$request->q.'%'))));
+            ->when($request->filled('q'), fn ($q) => $q->whereHas('asset', fn ($a) => $a->withTrashed()->where(fn ($w) => $w->whereLike('asset_code', '%'.$request->q.'%')->orWhereLike('name', '%'.$request->q.'%'))));
         $totals = (clone $q)->toBase()->selectRaw('COUNT(*) n, COALESCE(SUM(depreciation_amount),0) dep, COALESCE(SUM(opening_gross_block),0) gross, COALESCE(SUM(closing_wdv),0) wdv')->first();
         $entries = $q->join('assets', 'assets.id', '=', 'depreciation_entries.asset_id')->orderBy('assets.asset_code')
             ->select('depreciation_entries.*')->paginate(50)->withQueryString();

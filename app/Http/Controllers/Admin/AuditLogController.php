@@ -26,7 +26,7 @@ class AuditLogController extends Controller
         $query = $this->base()->latest('created_at')->latest('id');
 
         if ($t = trim((string) $request->query('q'))) {
-            $query->where(fn ($q) => $q->where('auditable_label', 'like', "%$t%")->orWhere('user_name', 'like', "%$t%")->orWhere('ip_address', 'like', "%$t%"));
+            $query->where(fn ($q) => $q->whereLike('auditable_label', "%$t%")->orWhereLike('user_name', "%$t%")->orWhereLike('ip_address', "%$t%"));
         }
         if ($e = $request->query('event')) {
             $query->where('event', $e);

@@ -19,7 +19,7 @@ trait Searchable
 
         return $query->where(function ($q) use ($term) {
             foreach (static::searchable() as $col) {
-                $q->orWhere($this->qualifyColumn($col), 'like', '%'.$term.'%');
+                $q->orWhereLike($this->qualifyColumn($col), '%'.$term.'%');
             }
         });
     }

@@ -17,8 +17,8 @@ class DisposalController extends Controller
     public function index(Request $request)
     {
         $q = AssetDisposal::with(['asset:id,asset_code,name,asset_category_id', 'asset.category:id,name'])
-            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('disposal_number', 'like', "%{$request->q}%")->orWhere('buyer_name', 'like', "%{$request->q}%")
-                ->orWhereHas('asset', fn ($a) => $a->withTrashed()->where('asset_code', 'like', "%{$request->q}%")->orWhere('name', 'like', "%{$request->q}%"))))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('disposal_number', "%{$request->q}%")->orWhereLike('buyer_name', "%{$request->q}%")
+                ->orWhereHas('asset', fn ($a) => $a->withTrashed()->whereLike('asset_code', "%{$request->q}%")->orWhereLike('name', "%{$request->q}%"))))
             ->when($request->filled('type'), fn ($q) => $q->where('disposal_type', $request->type))
             ->when($request->filled('from'), fn ($q) => $q->where('disposal_date', '>=', $request->from))
             ->when($request->filled('to'), fn ($q) => $q->where('disposal_date', '<=', $request->to));

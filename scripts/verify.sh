@@ -43,6 +43,10 @@ expect $J GET /admin/company-profile 200
 expect $J GET /admin/companies 403
 expect $J GET "/assets?q=IMM-0001" 200; body_has "IMM-0001"; body_lacks "ACME Secret"
 expect $J GET "/assets?q=Engel&category=1" 200
+# search is case-insensitive on every driver (LIKE on MySQL, ILIKE on PostgreSQL)
+expect $J GET "/assets?q=imm-0001" 200; body_has "IMM-0001"
+expect $J GET "/pm-schedules?q=MONTHLY" 200; body_has "Monthly PM"
+for u in "/work-orders?q=mld" "/disposals?q=laptop" "/transfers?q=plant" "/admin/audit-logs?q=admin" "/reports/asset-register?q=imm" "/reports/audit-trail?q=imm" "/reports/depreciation-detail?q=imm"; do expect $J GET "$u" 200; done
 expect $J GET /assets/create 200
 expect $J GET /assets/$A1 200; body_has "<svg"
 expect $J GET /assets/$A1/edit 200
@@ -92,7 +96,14 @@ expect $J GET /admin/company-profile 403
 # ---------------------------------------------------------------- Phase 2
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 envv() { grep -E "^$1=" "$ROOT/.env" | cut -d= -f2- | tr -d '"'; }
-sql() { mysql -h"$(envv DB_HOST)" -P"$(envv DB_PORT)" -u"$(envv DB_USERNAME)" -p"$(envv DB_PASSWORD)" "$(envv DB_DATABASE)" -N -B -e "$1" 2>/dev/null; }
+# DB probe that works on MySQL/MariaDB and PostgreSQL (booleans normalised to 1/0)
+sql() {
+  if [ "$(envv DB_CONNECTION)" = "pgsql" ]; then
+    PGPASSWORD="$(envv DB_PASSWORD)" psql -h "$(envv DB_HOST)" -p "$(envv DB_PORT)" -U "$(envv DB_USERNAME)" -d "$(envv DB_DATABASE)" -At -F $'\t' -c "$1" 2>/dev/null | sed -e 's/^t$/1/' -e 's/^f$/0/'
+  else
+    mysql -h"$(envv DB_HOST)" -P"$(envv DB_PORT)" -u"$(envv DB_USERNAME)" -p"$(envv DB_PASSWORD)" "$(envv DB_DATABASE)" -N -B -e "$1" 2>/dev/null
+  fi
+}
 eq() { # label actual expected
   if [ "$2" = "$3" ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL $1: got '$2' want '$3'"; fi; }
 post_follow() { # jar path [data...] -> follows redirect into $tmp/body
@@ -120,7 +131,7 @@ eq "Low-value caliper fully written off (to residual)"       "$(entry 'Caliper' 
 eq "Never below residual (no asset NBV < residual)"          "$(sql "select count(*) from assets where company_id=1 and current_book_value < residual_value - 0.01")" 0
 eq "Asset acc. dep. = opening + sum(entries)" "$(sql "select count(*) from assets a where company_id=1 and abs(a.accumulated_depreciation - a.opening_accumulated_depreciation - (select coalesce(sum(depreciation_amount),0) from depreciation_entries e where e.asset_id=a.id and e.deleted_at is null)) > 0.01")" 0
 eq "Disposal P/L = proceeds − cost − NBV" "$(sql "select count(*) from asset_disposals where abs(profit_loss - (sale_value - disposal_cost - nbv_at_disposal)) > 0.01")" 0
-eq "Seeded locks Apr-2024..Aug-2026" "$(sql "select count(*) from period_locks where company_id=1 and is_locked=1")" 29
+eq "Seeded locks Apr-2024..Aug-2026" "$(sql "select count(*) from period_locks where company_id=1 and is_locked")" 29
 
 J=$(login admin@precisionpolymers.in)
 CLOSE=$(cd "$ROOT" && php artisan tinker --execute='\App\Support\Tenant::set(1); echo inr(\App\Models\Asset::whereHas("status", fn($q)=>$q->whereNotIn("code",["DISPOSED","SCRAPPED"]))->sum("accumulated_depreciation"), 2, false);' 2>/dev/null | tail -1)
@@ -150,8 +161,8 @@ post_follow $J /depreciation/runs/$SEP/reverse --data-urlencode "reason=verify o
 post_follow $J /depreciation/runs/$OCT/reverse --data-urlencode "reason=verify reversal"
 eq "Oct run reversed, entries soft-deleted" "$(sql "select status from depreciation_runs where id=$OCT")/$(sql "select count(*) from depreciation_entries where depreciation_run_id=$OCT and deleted_at is null")" "reversed/0"
 expect $J POST /depreciation/runs/$SEP/finalize 302
-eq "Sep-2026 finalised + locked" "$(sql "select status from depreciation_runs where id=$SEP")/$(sql "select count(*) from period_locks where depreciation_run_id=$SEP and is_locked=1")" "finalized/1"
-LOCK=$(sql "select id from period_locks where depreciation_run_id=$SEP and is_locked=1")
+eq "Sep-2026 finalised + locked" "$(sql "select status from depreciation_runs where id=$SEP")/$(sql "select count(*) from period_locks where depreciation_run_id=$SEP and is_locked")" "finalized/1"
+LOCK=$(sql "select id from period_locks where depreciation_run_id=$SEP and is_locked")
 expect $J POST /depreciation/locks/$LOCK/unlock 302 --data-urlencode "reason=verify unlock"
 eq "unlock returns run to posted" "$(sql "select status from depreciation_runs where id=$SEP")" posted
 expect $J POST /depreciation/runs/$SEP/finalize 302

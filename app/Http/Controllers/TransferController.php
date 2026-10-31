@@ -17,8 +17,8 @@ class TransferController extends Controller
     public function index(Request $request)
     {
         $transfers = AssetTransfer::with(['asset:id,asset_code,name', 'fromLocation:id,name', 'toLocation:id,name', 'fromDepartment:id,name', 'toDepartment:id,name', 'fromCostCenter:id,code', 'toCostCenter:id,code', 'requestedBy:id,name'])
-            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('transfer_number', 'like', "%{$request->q}%")->orWhere('reason', 'like', "%{$request->q}%")
-                ->orWhereHas('asset', fn ($a) => $a->withTrashed()->where('asset_code', 'like', "%{$request->q}%")->orWhere('name', 'like', "%{$request->q}%"))))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('transfer_number', "%{$request->q}%")->orWhereLike('reason', "%{$request->q}%")
+                ->orWhereHas('asset', fn ($a) => $a->withTrashed()->whereLike('asset_code', "%{$request->q}%")->orWhereLike('name', "%{$request->q}%"))))
             ->when($request->filled('location'), fn ($q) => $q->where(fn ($w) => $w->where('from_location_id', $request->location)->orWhere('to_location_id', $request->location)))
             ->when($request->filled('from'), fn ($q) => $q->where('transfer_date', '>=', $request->from))
             ->when($request->filled('to'), fn ($q) => $q->where('transfer_date', '<=', $request->to))

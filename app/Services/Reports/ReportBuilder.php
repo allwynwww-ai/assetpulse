@@ -134,7 +134,7 @@ class ReportBuilder
             ->leftJoin('cost_centers as cc', 'cc.id', '=', 'a.cost_center_id')
             ->leftJoin('depreciation_methods as m', 'm.id', '=', 'a.depreciation_method_id')
             ->leftJoin('asset_statuses as s', 's.id', '=', 'a.asset_status_id')
-            ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('a.asset_code', 'like', "%{$r->q}%")->orWhere('a.name', 'like', "%{$r->q}%")->orWhere('a.serial_number', 'like', "%{$r->q}%")))
+            ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('a.asset_code', "%{$r->q}%")->orWhereLike('a.name', "%{$r->q}%")->orWhereLike('a.serial_number', "%{$r->q}%")))
             ->when($r->filled('category'), fn ($q) => $q->where('a.asset_category_id', $r->category))
             ->when($r->filled('location'), fn ($q) => $q->where('a.location_id', $r->location))
             ->when($r->filled('department'), fn ($q) => $q->where('a.department_id', $r->department))
@@ -229,7 +229,7 @@ class ReportBuilder
             ->when($r->filled('category'), fn ($q) => $q->where('e.asset_category_id', $r->category))
             ->when($r->filled('location'), fn ($q) => $q->where('e.location_id', $r->location))
             ->when($r->filled('cost_center'), fn ($q) => $q->where('e.cost_center_id', $r->cost_center))
-            ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('a.asset_code', 'like', "%{$r->q}%")->orWhere('a.name', 'like', "%{$r->q}%")))
+            ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('a.asset_code', "%{$r->q}%")->orWhereLike('a.name', "%{$r->q}%")))
             ->orderBy('e.period_end')->orderBy('a.asset_code')
             ->get(['r.run_number', 'r.period_label', 'r.run_type', 'e.period_start', 'e.period_end', 'a.asset_code', 'a.name', 'c.name as category', 'cc.code as cc', 'l.name as location',
                 'e.method_code', 'e.days', 'e.rate', 'e.opening_gross_block', 'e.opening_accumulated_depreciation', 'e.depreciation_amount', 'e.closing_accumulated_depreciation', 'e.closing_wdv'])
@@ -398,7 +398,7 @@ class ReportBuilder
             ->when($r->filled('type'), fn ($q) => $q->where('w.type', $r->type))
             ->when($r->filled('status'), fn ($q) => $q->where('w.status', $r->status))
             ->when($r->filled('location'), fn ($q) => $q->where('a.location_id', $r->location))
-            ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('a.asset_code', 'like', "%{$r->q}%")->orWhere('a.name', 'like', "%{$r->q}%")))
+            ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('a.asset_code', "%{$r->q}%")->orWhereLike('a.name', "%{$r->q}%")))
             ->orderBy('w.reported_date')->orderBy('w.id')
             ->get(['w.wo_number', 'w.reported_date', 'w.completed_at', 'a.asset_code', 'a.name', 'w.type', 'w.priority', 'w.status', 'w.title', 'w.downtime_hours', 'w.labour_cost', 'w.parts_cost', 'w.external_cost', 'w.total_cost', 'v.name as vendor', 'w.assigned_to'])
             ->map(fn ($w) => ['wo' => $w->wo_number, 'reported' => $w->reported_date, 'completed' => $w->completed_at ? substr($w->completed_at, 0, 10) : null, 'asset_code' => $w->asset_code, 'name' => $w->name,
@@ -459,7 +459,7 @@ class ReportBuilder
             ->when($r->filled('user'), fn ($q) => $q->where('user_id', $r->user))
             ->when($r->filled('event'), fn ($q) => $q->where('event', $r->event))
             ->when($r->filled('entity'), fn ($q) => $q->where('auditable_type', $r->entity))
-            ->when($r->filled('q'), fn ($q) => $q->where('auditable_label', 'like', "%{$r->q}%"))
+            ->when($r->filled('q'), fn ($q) => $q->whereLike('auditable_label', "%{$r->q}%"))
             ->orderByDesc('created_at')->orderByDesc('id')->limit(5000)
             ->get(['created_at', 'user_name', 'event', 'auditable_type', 'auditable_label', 'old_values', 'new_values', 'ip_address'])
             ->map(function ($l) {

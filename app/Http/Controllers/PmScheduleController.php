@@ -18,8 +18,8 @@ class PmScheduleController extends Controller
         $today = now()->toDateString();
         $q = PmSchedule::with(['asset:id,asset_code,name,location_id', 'asset.location:id,name', 'vendor:id,name'])
             ->whereHas('asset')
-            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('title', 'like', "%{$request->q}%")->orWhere('code', 'like', "%{$request->q}%")
-                ->orWhereHas('asset', fn ($a) => $a->where('asset_code', 'like', "%{$request->q}%")->orWhere('name', 'like', "%{$request->q}%"))));
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('title', "%{$request->q}%")->orWhereLike('code', "%{$request->q}%")
+                ->orWhereHas('asset', fn ($a) => $a->whereLike('asset_code', "%{$request->q}%")->orWhereLike('name', "%{$request->q}%"))));
         match ($view) {
             'overdue' => $q->where('is_active', true)->where('next_due_date', '<', $today),
             'due30' => $q->where('is_active', true)->whereBetween('next_due_date', [$today, now()->addDays(30)->toDateString()]),

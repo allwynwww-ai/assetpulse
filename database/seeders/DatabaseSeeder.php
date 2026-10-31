@@ -578,6 +578,6 @@ class DatabaseSeeder extends Seeder
         DB::table('depreciation_entries')->where('depreciation_run_id', $run->id)->update(['created_at' => $posted, 'updated_at' => $posted]);
         DB::table('period_locks')->where('depreciation_run_id', $run->id)->update(['locked_at' => $final, 'created_at' => $final, 'updated_at' => $final]);
         DB::table('audit_logs')->where('auditable_type', DepreciationRun::class)->where('auditable_id', $run->id)
-            ->update(['created_at' => DB::raw("IF(event = 'finalized', '".$final->toDateTimeString()."', '".$posted->toDateTimeString()."')")]);
+            ->update(['created_at' => DB::raw("CASE WHEN event = 'finalized' THEN TIMESTAMP '".$final->toDateTimeString()."' ELSE TIMESTAMP '".$posted->toDateTimeString()."' END")]);
     }
 }

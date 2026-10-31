@@ -10,6 +10,7 @@ use App\Models\FinancialYear;
 use App\Models\PmSchedule;
 use App\Models\WorkOrder;
 use App\Services\PeriodGuard;
+use App\Support\Sql;
 use App\Support\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -58,7 +59,7 @@ class DashboardController extends Controller
         $end = Carbon::parse($lastRun?->period_end ?? now())->endOfMonth();
         $start = $end->copy()->subMonthsNoOverflow(11)->startOfMonth();
         $trendRaw = DepreciationEntry::query()->toBase()->whereBetween('period_end', [$start->toDateString(), $end->toDateString()])
-            ->whereNull('deleted_at')->selectRaw("DATE_FORMAT(period_end, '%Y-%m') ym, SUM(depreciation_amount) amt")->groupBy('ym')->pluck('amt', 'ym');
+            ->whereNull('deleted_at')->selectRaw(Sql::yearMonth('period_end').' ym, SUM(depreciation_amount) amt')->groupByRaw(Sql::yearMonth('period_end'))->pluck('amt', 'ym');
         $trend = collect(range(0, 11))->map(function ($i) use ($start, $trendRaw) {
             $m = $start->copy()->addMonthsNoOverflow($i);
 
@@ -80,7 +81,7 @@ class DashboardController extends Controller
 
         $recent = Asset::with(['category', 'location', 'status'])->latest('id')->limit(6)->get();
 
-        $eolExpr = 'DATE_SUB(DATE_ADD(capitalization_date, INTERVAL (useful_life_years * 12 + useful_life_months) MONTH), INTERVAL 1 DAY)';
+        $eolExpr = Sql::addMonths('capitalization_date', 'useful_life_years * 12 + useful_life_months', 1);
         $endingLife = $live()->with('category:id,name')->select('assets.*')->selectRaw("$eolExpr as eol")
             ->whereRaw("$eolExpr BETWEEN ? AND ?", [now()->toDateString(), now()->addMonths(12)->toDateString()])
             ->orderBy('eol')->limit(8)->get();

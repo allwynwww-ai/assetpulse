@@ -148,7 +148,7 @@ class MaintenanceService
     {
         return PmSchedule::where('is_active', true)->whereNotNull('next_due_date')
             ->whereHas('asset')
-            ->whereRaw('next_due_date <= DATE_ADD(CURDATE(), INTERVAL GREATEST(alert_days_before, 0) DAY)')
+            ->whereRaw('next_due_date <= '.\App\Support\Sql::todayPlusDays('GREATEST(alert_days_before, 0)'))
             ->count();
     }
 }

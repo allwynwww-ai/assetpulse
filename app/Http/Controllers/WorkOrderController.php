@@ -18,15 +18,15 @@ class WorkOrderController extends Controller
     public function index(Request $request)
     {
         $q = WorkOrder::with(['asset:id,asset_code,name', 'vendor:id,name'])
-            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->where('wo_number', 'like', "%{$request->q}%")->orWhere('title', 'like', "%{$request->q}%")
-                ->orWhereHas('asset', fn ($a) => $a->withTrashed()->where('asset_code', 'like', "%{$request->q}%")->orWhere('name', 'like', "%{$request->q}%"))))
+            ->when($request->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('wo_number', "%{$request->q}%")->orWhereLike('title', "%{$request->q}%")
+                ->orWhereHas('asset', fn ($a) => $a->withTrashed()->whereLike('asset_code', "%{$request->q}%")->orWhereLike('name', "%{$request->q}%"))))
             ->when($request->filled('type'), fn ($q) => $q->where('type', $request->type))
             ->when($request->input('status') === 'open', fn ($q) => $q->whereIn('status', ['open', 'in_progress', 'on_hold']))
             ->when($request->filled('status') && $request->status !== 'open', fn ($q) => $q->where('status', $request->status))
             ->when($request->filled('from'), fn ($q) => $q->where('reported_date', '>=', $request->from))
             ->when($request->filled('to'), fn ($q) => $q->where('reported_date', '<=', $request->to));
         $totals = (clone $q)->toBase()->selectRaw('COUNT(*) n, COALESCE(SUM(total_cost),0) cost, COALESCE(SUM(downtime_hours),0) downtime')->first();
-        $workOrders = $q->orderByRaw("FIELD(status,'in_progress','open','on_hold','completed','cancelled')")->orderByDesc('reported_date')->orderByDesc('id')->paginate(20)->withQueryString();
+        $workOrders = $q->orderByRaw(\App\Support\Sql::orderByList('status', ['in_progress', 'open', 'on_hold', 'completed', 'cancelled']))->orderByDesc('reported_date')->orderByDesc('id')->paginate(20)->withQueryString();
         $openCount = WorkOrder::whereIn('status', ['open', 'in_progress', 'on_hold'])->count();
         $openBreakdowns = WorkOrder::where('type', 'breakdown')->whereIn('status', ['open', 'in_progress', 'on_hold'])->count();
 
