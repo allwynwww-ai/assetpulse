@@ -1,0 +1,83 @@
+# Render Blueprint for AssetPulse: one free Docker web service + one free PostgreSQL, both in Singapore.
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repo. See README "Deploying to Render".
+services:
+  - type: web
+    name: assetpulse
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /up
+    autoDeployTrigger: commit
+    envVars:
+      - key: APP_NAME
+        value: AssetPulse
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true # bare base64 256-bit; docker/entrypoint.sh adds Laravel's "base64:" prefix
+      - key: APP_TIMEZONE
+        value: Asia/Kolkata
+      # APP_URL defaults to Render's RENDER_EXTERNAL_URL (set in the entrypoint); override for a custom domain.
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        fromDatabase:
+          name: assetpulse-db
+          property: connectionString
+      - key: DB_HOST
+        fromDatabase:
+          name: assetpulse-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: assetpulse-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: assetpulse-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: assetpulse-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: assetpulse-db
+          property: password
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: MAIL_MAILER
+        value: log
+      # Seed the demo companies on first boot (only when the database has no users).
+      # For a real tenant set DEMO_SEED=false and provide ADMIN_EMAIL / ADMIN_PASSWORD instead.
+      - key: DEMO_SEED
+        value: "true"
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: assetpulse-db
+    plan: free
+    region: singapore
+    databaseName: assetpulse
+    user: assetpulse
+    postgresMajorVersion: "17"
+    ipAllowList: [] # internal connections from Render services only

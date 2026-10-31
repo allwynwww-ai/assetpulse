@@ -95,7 +95,8 @@ expect $J GET /admin/company-profile 403
 
 # ---------------------------------------------------------------- Phase 2
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-envv() { grep -E "^$1=" "$ROOT/.env" | cut -d= -f2- | tr -d '"'; }
+# exported env vars win over .env (lets verify.sh target another DB/container, e.g. BASE=... DB_CONNECTION=pgsql ...)
+envv() { if [ -n "${!1:-}" ]; then echo "${!1}"; else grep -E "^$1=" "$ROOT/.env" | cut -d= -f2- | tr -d '"'; fi; }
 # DB probe that works on MySQL/MariaDB and PostgreSQL (booleans normalised to 1/0)
 sql() {
   if [ "$(envv DB_CONNECTION)" = "pgsql" ]; then

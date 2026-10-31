@@ -21,6 +21,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Behind Render's TLS-terminating proxy: always generate https:// URLs in production
+        // (trustProxies('*') in bootstrap/app.php makes request->secure() correct as well).
+        if ($this->app->isProduction() || filter_var(env('FORCE_HTTPS', false), FILTER_VALIDATE_BOOL)) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
+
         \Illuminate\Foundation\AliasLoader::getInstance()->alias('Tenant', \App\Support\Tenant::class);
         \Illuminate\Database\Eloquent\Model::preventLazyLoading(! app()->isProduction());
 

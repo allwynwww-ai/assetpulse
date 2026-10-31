@@ -1,0 +1,44 @@
+# Rendered by docker/entrypoint.sh (envsubst ${PORT}) into /etc/nginx/conf.d/assetpulse.conf
+server {
+    listen ${PORT} default_server;
+    listen [::]:${PORT} default_server;
+    server_name _;
+    root /var/www/html/public;
+    index index.php;
+    charset utf-8;
+    client_max_body_size 25m;
+    server_tokens off;
+
+    access_log /dev/stdout;
+    error_log /dev/stderr warn;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    location /build/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    location ~ \.php$ {
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        include fastcgi_params;
+        # Debian's fastcgi_params sets HTTP_HOST=$host, which drops a non-default port
+        fastcgi_param HTTP_HOST $http_host;
+        fastcgi_hide_header X-Powered-By;
+        fastcgi_read_timeout 120s;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+    }
+
+    location ~ /\.(?!well-known).* { deny all; }
+}

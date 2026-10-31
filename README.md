@@ -1,7 +1,7 @@
 # AssetPulse — Fixed Asset Management
 
 Multi-tenant fixed asset register for Indian manufacturers. It follows Schedule II (Companies Act 2013) and is ready for Ind AS 16.
-Stack: Laravel 13, PHP 8.4, MariaDB/MySQL, Breeze (Blade), Tailwind 3, Alpine, Chart.js, PhpSpreadsheet (Excel), dompdf (PDF) and endroid/qr-code.
+Stack: Laravel 13, PHP 8.4, MariaDB/MySQL (default) or PostgreSQL, Breeze (Blade), Tailwind 3, Alpine, Chart.js, PhpSpreadsheet (Excel), dompdf (PDF) and endroid/qr-code.
 
 ## Run it
 
@@ -24,6 +24,77 @@ Nginx serves `public/` at **http://localhost:8080**.
 - tenant isolation.
 
 `php artisan test` runs the PHPUnit suite. It uses the `assetpulse_test` database and includes the depreciation calculator unit tests.
+
+## Databases: MySQL (default) and PostgreSQL
+
+MySQL/MariaDB stays the default for local work. The same code runs on PostgreSQL 13+ (the Render deployment uses it). Set `DB_CONNECTION=pgsql` plus `DB_HOST`/`DB_PORT`/`DB_DATABASE`/`DB_USERNAME`/`DB_PASSWORD`, or set a single `DB_URL=postgresql://user:pass@host:5432/db`.
+
+- Driver-specific SQL lives in `app/Support/Sql.php`: month and day date arithmetic, `YYYY-MM` bucketing, and a CASE-based replacement for MySQL's `FIELD()` ordering. Everything else uses the query builder.
+- Search uses `whereLike`/`orWhereLike`, so it is case-insensitive on both drivers: `LIKE` with a case-insensitive collation on MySQL, and `ILIKE` on PostgreSQL.
+- Reports aggregate with full `GROUP BY` lists, so PostgreSQL's strict grouping rules are satisfied.
+
+**Testing on PostgreSQL locally.**
+
+```bash
+sudo pg_ctlcluster 17 main start
+# point .env at pgsql (DB_CONNECTION=pgsql, DB_PORT=5432, ...), then:
+php artisan migrate:fresh --seed && bash scripts/verify.sh
+DB_CONNECTION=pgsql DB_PORT=5432 php artisan test     # uses the assetpulse_test database
+```
+
+`verify.sh` reads DB settings from exported environment variables first and from `.env` second. That lets you aim it at another database or container: `BASE=http://localhost:18080 DB_CONNECTION=pgsql DB_DATABASE=... bash scripts/verify.sh`.
+
+## Deploying to Render (free tier, PostgreSQL)
+
+`render.yaml` is a Render Blueprint. It defines:
+- one **free Docker web service**, `assetpulse`, in Singapore, with health check `/up`;
+- one **free PostgreSQL** database, `assetpulse-db`, in Singapore, reachable only from inside Render (`ipAllowList: []`).
+
+The web service gets its connection details from the database through `fromDatabase`. `APP_KEY` is created with `generateValue`, and the entrypoint adds Laravel's `base64:` prefix to it.
+
+1. Push this repository to GitHub or GitLab.
+2. In Render: **New → Blueprint**, pick the repo, and click Apply. Render builds the `Dockerfile` and creates the database.
+3. The first boot migrates and seeds the demo companies, because `DEMO_SEED=true`. Log in at the `onrender.com` URL with the demo logins below.
+
+**Image** (`Dockerfile`, a multi-stage build):
+- Composer stage: production vendor only (`--no-dev`).
+- Node 22 stage: Vite and Tailwind build.
+- Runtime: `php:8.4-fpm-bookworm` with nginx. Extensions: pdo_pgsql, pdo_mysql, gd, intl, zip, bcmath and opcache.
+- nginx listens on `$PORT` (Render injects it; the default is 10000).
+
+**Start-up** (`docker/entrypoint.sh`), in order:
+1. Normalise `APP_KEY`.
+2. `migrate --force`, retried while the database warms up.
+3. `app:seed-if-empty`.
+4. `storage:link`.
+5. Config, route, view and event caches.
+6. php-fpm and nginx.
+
+SIGTERM stops both processes gracefully.
+
+**Seeding.** `app:seed-if-empty` does nothing once any user exists. With `DEMO_SEED=true` it loads the demo data. With `DEMO_SEED=false`, set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the dashboard; it then creates only a platform Super Admin, who adds companies in the UI.
+
+> ⚠️ **The demo logins all use the password `password` and are public in this README.** For anything other than a throwaway demo, set `DEMO_SEED=false` on a fresh database, or change every seeded password straight away.
+
+**HTTPS.** Render terminates TLS at its proxy. `bootstrap/app.php` trusts proxy headers (`trustProxies('*')`), and `AppServiceProvider` forces `https://` URLs when `APP_ENV=production`. `SESSION_SECURE_COOKIE=true` is set in the Blueprint.
+
+**Free-tier caveats.**
+- **No persistent disk.** Asset photos and attachments go to `storage/app` inside the container, and **they are lost on every redeploy, restart or spin-down**. For real use, move to a paid instance with a Render Disk mounted at `/var/www/html/storage/app`, or switch the `public`/`local` disks to S3-compatible storage.
+- **Free web services sleep after about 15 minutes without traffic.** The next request waits roughly a minute while the container boots and re-runs migrations, which are quick no-ops.
+- **Free PostgreSQL expires 30 days after creation** unless you upgrade it. It has 1 GB of storage and no backups. Export with `pg_dump` if the data matters.
+- Free instances have 512 MB of RAM and a shared CPU. php-fpm is capped at 6 children, and big PDF or Excel exports are slower than locally.
+- `QUEUE_CONNECTION=sync` and `MAIL_MAILER=log`: there is no worker on the free tier, and mail is written to the logs.
+
+**Trying the image locally.**
+
+```bash
+docker build -t assetpulse .
+docker run --rm --network host -e PORT=18080 -e APP_KEY="$(openssl rand -base64 32)" \
+  -e DB_CONNECTION=pgsql -e DB_URL=postgresql://appuser:appdev_local@127.0.0.1:5432/assetpulse_docker \
+  -e DEMO_SEED=true -e APP_ENV=staging -e APP_URL=http://localhost:18080 assetpulse
+```
+
+Use `APP_ENV=staging` for plain-HTTP local testing, because `production` forces https URLs.
 
 ## Logins (password for all: `password`)
 
