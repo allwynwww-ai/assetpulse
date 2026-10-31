@@ -31,6 +31,10 @@
                     <option value="{{ $val }}" @selected((string) $value === (string) $val)>{{ $lbl }}</option>
                 @endforeach
             </select>
+        @elseif ($type === 'password')
+            <x-password-input id="{{ $id }}" name="{{ $name }}" autocomplete="new-password"
+                              placeholder="{{ $field['placeholder'] ?? '' }}"
+                              :disabled="$disabled" />
         @else
             <div class="relative">
                 @if (! empty($field['prefix']))

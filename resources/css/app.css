@@ -7,6 +7,8 @@
     body { @apply bg-slate-50 text-slate-700; font-feature-settings: "cv11", "ss01"; }
     h1, h2, h3, h4 { @apply text-slate-900; }
     [x-cloak] { display: none !important; }
+    /* we ship our own show/hide toggle on password fields; hide Edge/IE built-in reveal button */
+    input::-ms-reveal, input::-ms-clear { display: none; }
     /* grid/flex children must be allowed to shrink so wide tables scroll inside their card, not the page */
     .grid > *, .flex-1 { min-width: 0; }
 }

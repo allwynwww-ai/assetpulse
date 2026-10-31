@@ -18,7 +18,7 @@
                     <a class="mb-1.5 text-xs font-medium text-brand-600 hover:underline" href="{{ route('password.request') }}">Forgot?</a>
                 @endif
             </div>
-            <input id="password" class="form-input" type="password" name="password" required autocomplete="current-password">
+            <x-password-input id="password" name="password" required autocomplete="current-password" />
             @error('password')<p class="form-error">{{ $message }}</p>@enderror
         </div>
         <label for="remember_me" class="flex items-center gap-2 text-sm text-slate-600">
