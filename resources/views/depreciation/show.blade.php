@@ -9,7 +9,7 @@
             @if ($canRun && $canReverse)
                 <div x-data="{ open: false }">
                     <button type="button" @click="open = true" class="btn-secondary text-rose-600"><x-icon name="restore" class="h-4 w-4"/> Reverse</button>
-                    <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" @keydown.escape.window="open = false">
+                    <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-[#0d0f24]/45 p-4" @keydown.escape.window="open = false">
                         <form method="POST" action="{{ route('depreciation.reverse', $run) }}" class="card w-full max-w-md p-6" @click.outside="open = false">
                             @csrf
                             <div class="text-base font-semibold text-slate-900">Reverse {{ $run->run_number }}?</div>

@@ -11,4 +11,4 @@
     $c = $map[$value] ?? 'slate';
     $label = \Illuminate\Support\Str::headline($value === 'finalized' ? 'finalised' : $value);
 @endphp
-<span {{ $attributes->merge(['class' => "badge bg-{$c}-50 text-{$c}-700 ring-{$c}-200"]) }}>{{ $slot->isEmpty() ? $label : $slot }}</span>
+<span {{ $attributes->merge(['class' => "badge bg-{$c}-500/10 text-{$c}-700 ring-{$c}-600/20 dark:text-{$c}-300"]) }}><span class="h-1.5 w-1.5 rounded-full bg-{{ $c }}-500"></span>{{ $slot->isEmpty() ? $label : $slot }}</span>

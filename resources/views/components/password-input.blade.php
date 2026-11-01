@@ -1,10 +1,11 @@
 {{--
     Password field with a show/hide toggle (eye icon inside the right edge).
     Usage: <x-password-input id="password" name="password" autocomplete="current-password" required />
+    Optional: icon="lock" adds a leading icon; input-class="…" styles the input itself.
     Any "class" passed in is applied to the wrapper (spacing/width); the input itself
     always uses the app's .form-input style plus right padding for the toggle.
 --}}
-@props(['disabled' => false, 'inputClass' => ''])
+@props(['disabled' => false, 'inputClass' => '', 'icon' => null])
 
 @php
     $inputId = $attributes->get('id');
@@ -13,14 +14,17 @@
 <div x-data="{ show: false }"
      x-init="$refs.input.form && $refs.input.form.addEventListener('submit', () => show = false)"
      {{ $attributes->only('class')->merge(['class' => 'relative']) }}>
+    @if ($icon)
+        <span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-ink3"><x-icon :name="$icon" class="h-[18px] w-[18px]"/></span>
+    @endif
     <input type="password"
            x-ref="input"
            :type="show ? 'text' : 'password'"
            @disabled($disabled)
            autocapitalize="none" autocorrect="off" spellcheck="false"
-           {{ $attributes->except('class')->merge(['class' => trim('form-input pr-11 '.$inputClass)]) }}>
+           {{ $attributes->except('class')->merge(['class' => trim('form-input pr-11 '.($icon ? 'pl-11 ' : '').$inputClass)]) }}>
     <button type="button"
-            class="absolute -inset-y-px right-0 flex w-11 items-center justify-center rounded-r-lg text-slate-400 transition hover:text-slate-600 focus:outline-none focus-visible:text-brand-600 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400/60 disabled:cursor-not-allowed disabled:opacity-50"
+            class="absolute -inset-y-px right-0 flex w-11 items-center justify-center rounded-r-lg text-ink3 transition hover:text-ink2 focus:outline-none focus-visible:text-brand-600 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400/60 disabled:cursor-not-allowed disabled:opacity-50"
             data-password-toggle
             @click="show = ! show"
             :aria-label="show ? 'Hide password' : 'Show password'"

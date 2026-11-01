@@ -71,7 +71,7 @@
                             <x-pill :value="$l->is_locked ? 'locked' : 'unlocked'"/>
                             @if ($isAdmin && $l->is_locked && $loop->first)
                                 <button type="button" @click="open = true" class="btn-ghost btn-sm text-amber-700" title="Unlock">Unlock</button>
-                                <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" @keydown.escape.window="open = false">
+                                <div x-show="open" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-[#0d0f24]/45 p-4" @keydown.escape.window="open = false">
                                     <form method="POST" action="{{ route('depreciation.locks.unlock', $l) }}" class="card w-full max-w-md p-6" @click.outside="open = false">
                                         @csrf
                                         <div class="text-base font-semibold text-slate-900">Unlock {{ $l->period_label }}?</div>
