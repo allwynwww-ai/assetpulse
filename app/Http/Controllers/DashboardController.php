@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    private const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6', '#a855f7'];
+    private const PALETTE = ['#4840D6', '#14B8A6', '#F59E0B', '#8B5CF6', '#F43F5E', '#0EA5E9', '#10B981', '#A2A6FB', '#F97316', '#EC4899', '#84CC16', '#64748B'];
 
     public function __invoke(Request $request)
     {
@@ -72,8 +72,37 @@ class DashboardController extends Controller
             'trend' => ['labels' => $trend->pluck('label'), 'values' => $trend->pluck('value')],
         ];
 
+        // Hero / KPI extras (all real data) ----------------------------------
+        $activeId = AssetStatus::idFor(AssetStatus::ACTIVE);
+        $inUse = $activeId ? $live()->where('asset_status_id', $activeId)->count() : 0;
+        $additionsFy = $fy ? Asset::query()->toBase()->whereNull('deleted_at')
+            ->whereBetween('capitalization_date', [$fy->start_date->toDateString(), $fy->end_date->toDateString()])
+            ->selectRaw('COUNT(*) n, COALESCE(SUM(original_cost),0) cost')->first() : null;
+
+        // FY monthly depreciation (Apr..Mar) for the KPI bars
+        $fyMonths = collect();
+        if ($fy) {
+            $fyRaw = DepreciationEntry::query()->toBase()->whereNull('deleted_at')
+                ->whereBetween('period_end', [$fy->start_date->toDateString(), $fy->end_date->toDateString()])
+                ->selectRaw(Sql::yearMonth('period_end').' ym, SUM(depreciation_amount) amt')->groupByRaw(Sql::yearMonth('period_end'))->pluck('amt', 'ym');
+            for ($m = $fy->start_date->copy()->startOfMonth(); $m->lte($fy->end_date); $m->addMonthNoOverflow()) {
+                $fyMonths->push(['label' => $m->format('M'), 'value' => round((float) ($fyRaw[$m->format('Y-m')] ?? 0), 2), 'future' => $m->gt(now())]);
+            }
+        }
+
+        // Completed maintenance spend per month, last 12 months, for the sparkline
+        $mStart = now()->startOfMonth()->subMonthsNoOverflow(11);
+        $maintRaw = WorkOrder::query()->toBase()->whereNull('deleted_at')->where('status', 'completed')->whereNotNull('completed_at')
+            ->where('completed_at', '>=', $mStart->toDateTimeString())
+            ->selectRaw(Sql::yearMonth('completed_at').' ym, SUM(total_cost) amt')->groupByRaw(Sql::yearMonth('completed_at'))->pluck('amt', 'ym');
+        $maintTrend = collect(range(0, 11))->map(fn ($i) => round((float) ($maintRaw[$mStart->copy()->addMonthsNoOverflow($i)->format('Y-m')] ?? 0), 2));
+
+        // Depreciation not yet run for the last completed month?
+        $lastMonthEnd = now()->subMonthNoOverflow()->endOfMonth();
+        $depDue = $totals->n > 0 && (! $lastRun || $lastRun->period_end->lt($lastMonthEnd->copy()->startOfDay())) ? $lastMonthEnd : null;
+
         // Lists ---------------------------------------------------------------
-        $upcomingPm = PmSchedule::with('asset:id,asset_code,name')->where('is_active', true)->whereHas('asset')
+        $upcomingPm = PmSchedule::with(['asset:id,asset_code,name,asset_category_id', 'asset.category:id,name,code'])->where('is_active', true)->whereHas('asset')
             ->whereNotNull('next_due_date')->where('next_due_date', '<=', now()->addDays(30)->toDateString())
             ->orderBy('next_due_date')->limit(8)->get();
         $pmOverdue = PmSchedule::where('is_active', true)->whereHas('asset')->where('next_due_date', '<', now()->toDateString())->count();
@@ -82,7 +111,7 @@ class DashboardController extends Controller
         $recent = Asset::with(['category', 'location', 'status'])->latest('id')->limit(6)->get();
 
         $eolExpr = Sql::addMonths('capitalization_date', 'useful_life_years * 12 + useful_life_months', 1);
-        $endingLife = $live()->with('category:id,name')->select('assets.*')->selectRaw("$eolExpr as eol")
+        $endingLife = $live()->with('category:id,name,code')->select('assets.*')->selectRaw("$eolExpr as eol")
             ->whereRaw("$eolExpr BETWEEN ? AND ?", [now()->toDateString(), now()->addMonths(12)->toDateString()])
             ->orderBy('eol')->limit(8)->get();
 
@@ -93,6 +122,7 @@ class DashboardController extends Controller
             'charts' => $charts, 'byCategory' => $byCategory,
             'upcomingPm' => $upcomingPm, 'pmOverdue' => $pmOverdue, 'pmDue30' => $pmDue30,
             'recent' => $recent, 'endingLife' => $endingLife,
+            'inUse' => $inUse, 'additionsFy' => $additionsFy, 'fyMonths' => $fyMonths, 'maintTrend' => $maintTrend, 'depDue' => $depDue,
         ]);
     }
 }
