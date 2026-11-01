@@ -112,6 +112,55 @@ window.sidebarState = () => ({
 });
 
 /* ------------------------------------------------------------------ *
+ * Top-bar popovers (New, notifications, account). The panel is teleported
+ * to <body> (the sticky header's backdrop-filter would otherwise become the
+ * containing block for position:fixed) and placed against the trigger with
+ * fixed coordinates clamped to a 12px viewport gutter, so it can never run
+ * off either edge. `sheet: true` turns it into a full-width sheet below sm.
+ * ------------------------------------------------------------------ */
+const POP_GUTTER = 12;
+let popSeq = 0;
+window.topMenu = (opts = {}) => ({
+    uid: ++popSeq,
+    open: false,
+    sheet: !!opts.sheet,
+    isSheet: false,
+    pos: '',
+    toggle() { this.open ? this.close() : this.show(); },
+    show() {
+        window.dispatchEvent(new CustomEvent('ap:menu', { detail: this.uid }));
+        this.place();
+        this.open = true;
+        this.$nextTick(() => this.$refs.panel?.querySelector('a,button')?.focus({ preventScroll: true }));
+    },
+    close(refocus = false) {
+        if (!this.open) return;
+        this.open = false;
+        if (refocus) this.$refs.trigger?.focus({ preventScroll: true });
+    },
+    place() {
+        const vw = document.documentElement.clientWidth;
+        const r = this.$refs.trigger.getBoundingClientRect();
+        const hdr = this.$refs.trigger.closest('header')?.getBoundingClientRect();
+        const top = Math.round(Math.max(r.bottom, hdr ? hdr.bottom : 0) + 8);
+        this.isSheet = this.sheet && vw < 640;
+        if (this.isSheet) {
+            this.pos = `top:${top}px;left:${POP_GUTTER}px;right:${POP_GUTTER}px;max-height:calc(100dvh - ${top + POP_GUTTER}px)`;
+            return;
+        }
+        // Right-align to the trigger, then clamp so the panel stays inside the viewport
+        const width = Math.min(opts.width || 224, vw - POP_GUTTER * 2);
+        const right = Math.max(POP_GUTTER, Math.min(vw - r.right, vw - width - POP_GUTTER));
+        this.pos = `top:${top}px;right:${right}px;width:${width}px;max-height:calc(100dvh - ${top + POP_GUTTER}px)`;
+    },
+    init() {
+        window.addEventListener('ap:menu', (e) => { if (e.detail !== this.uid) this.close(); });
+        window.addEventListener('resize', () => { if (this.open) this.place(); });
+        window.addEventListener('scroll', () => { if (this.open && !this.isSheet) this.place(); }, { passive: true });
+    },
+});
+
+/* ------------------------------------------------------------------ *
  * Command palette (Ctrl/Cmd+K). Pages + actions come from the server
  * (role-filtered) in #ap-palette-data; assets from the tenant-scoped
  * JSON endpoint.
