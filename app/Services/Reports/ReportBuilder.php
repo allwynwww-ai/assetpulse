@@ -134,6 +134,7 @@ class ReportBuilder
             ->leftJoin('cost_centers as cc', 'cc.id', '=', 'a.cost_center_id')
             ->leftJoin('depreciation_methods as m', 'm.id', '=', 'a.depreciation_method_id')
             ->leftJoin('asset_statuses as s', 's.id', '=', 'a.asset_status_id')
+            ->when($r->filled('ids'), fn ($q) => $q->whereIn('a.id', collect(is_array($r->ids) ? $r->ids : explode(',', (string) $r->ids))->map(fn ($v) => (int) $v)->filter()->take(500)->all() ?: [0]))
             ->when($r->filled('q'), fn ($q) => $q->where(fn ($w) => $w->whereLike('a.asset_code', "%{$r->q}%")->orWhereLike('a.name', "%{$r->q}%")->orWhereLike('a.serial_number', "%{$r->q}%")))
             ->when($r->filled('category'), fn ($q) => $q->where('a.asset_category_id', $r->category))
             ->when($r->filled('location'), fn ($q) => $q->where('a.location_id', $r->location))

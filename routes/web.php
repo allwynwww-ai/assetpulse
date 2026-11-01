@@ -107,6 +107,8 @@ Route::middleware('auth')->group(function () {
             Route::delete('assets/{asset}/attachments/{attachment}', [AssetController::class, 'destroyAttachment'])->name('assets.attachments.destroy');
         });
         Route::get('assets', [AssetController::class, 'index'])->name('assets.index');
+        Route::get('search/assets', [AssetController::class, 'search'])->name('assets.search');
+        Route::get('assets/labels', [AssetController::class, 'labels'])->name('assets.labels');
         Route::get('assets/{asset}', [AssetController::class, 'show'])->withTrashed()->name('assets.show');
         Route::get('assets/{asset}/qr', [AssetController::class, 'qr'])->name('assets.qr');
         Route::get('assets/{asset}/label', [AssetController::class, 'label'])->name('assets.label');
